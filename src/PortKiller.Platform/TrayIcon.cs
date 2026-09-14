@@ -29,6 +29,7 @@ public sealed class TrayIcon : IDisposable
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _alwaysOnTopItem;
     private readonly ToolStripMenuItem _autostartItem;
+    private readonly ToolStripMenuItem _hideItem;
 
     private bool _disposed;
 
@@ -43,6 +44,9 @@ public sealed class TrayIcon : IDisposable
 
     /// <summary>항상 위 토글. 인자는 켠 뒤의 상태다.</summary>
     public event Action<bool>? AlwaysOnTopToggled;
+
+    /// <summary>펫을 잠깐 치워 달라는 뜻. 인자가 true 면 보이는 상태다.</summary>
+    public event Action<bool>? VisibilityToggled;
 
     public event Action? QuitRequested;
 
@@ -68,6 +72,16 @@ public sealed class TrayIcon : IDisposable
         // 자동 실행은 바깥에 넘기지 않고 여기서 끝낸다. 창과 아무 관계가 없는 설정이다.
         _autostartItem.Click += (_, _) => ApplyAutostart(_autostartItem.Checked);
 
+        // 잠깐 치우기. 발표·화면 공유·좁은 화면에서 캐릭터가 방해가 되는 순간이 있고,
+        // 그때 종료밖에 길이 없으면 사용자는 아예 지워 버린다.
+        // 체크가 켜져 있으면 "보이는 중"이다 — 메뉴 글자가 상태를 말하도록 둔다.
+        _hideItem = new ToolStripMenuItem("화면에 보이기")
+        {
+            CheckOnClick = true,
+            Checked = true,
+        };
+        _hideItem.CheckedChanged += (_, _) => VisibilityToggled?.Invoke(_hideItem.Checked);
+
         var statsItem = new ToolStripMenuItem("상태 보기");
         statsItem.Click += (_, _) => StatsRequested?.Invoke();
 
@@ -86,6 +100,7 @@ public sealed class TrayIcon : IDisposable
             statsItem,
             notebookItem,
             new ToolStripSeparator(),
+            _hideItem,
             _alwaysOnTopItem,
             _autostartItem,
             new ToolStripSeparator(),

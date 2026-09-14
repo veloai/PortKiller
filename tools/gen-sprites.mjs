@@ -22,7 +22,32 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RAW = path.join(ROOT, 'assets', 'sprites', '_raw');
 const OUT = path.join(ROOT, 'assets', 'sprites');
 const MODEL = 'gemini-3-pro-image';
-const SPECIES = 'day';
+
+// 종은 부화한 시간대로 갈린다(SpeciesPicker). 기본은 day — 기준 그림이 거기 있다.
+//   node tools/gen-sprites.mjs --species evening baby child adult
+const speciesArg = process.argv.indexOf('--species');
+const SPECIES = speciesArg >= 0 ? process.argv[speciesArg + 1] : 'day';
+
+// 같은 세계의 다른 아이다. 아예 다른 생물을 그리면 종마다 캐릭터를 새로 만드는 셈이 되고,
+// 그때부터 6종 × 40장이 감당이 안 된다. 몸은 같고 색조와 분위기만 바꾼다.
+const FLAVOURS = {
+  day: '',
+  dawn: `This one is the DAWN variant: a cooler, paler coat (dusty lavender-grey instead of orange),
+sleepy half-lidded eyes with faint shadows under them, a slightly droopier posture. Same species,
+same shapes, same art style - only the colours and the mood differ.`,
+  morning: `This one is the MORNING variant: a brighter, fresher coat (soft golden yellow instead of
+orange), wide bright eyes, perky upright ear tufts. Same species, same shapes, same art style -
+only the colours and the mood differ.`,
+  lunch: `This one is the LUNCH variant: a warmer, rounder look (soft peach coat), a plump well-fed
+belly, relaxed contented eyes. Same species, same shapes, same art style - only the colours and
+the mood differ.`,
+  evening: `This one is the EVENING variant: a deeper, calmer coat - warm dusky rose-brown instead of
+bright orange - with a cream face and belly, gentle relaxed eyes, an unhurried settled posture.
+Same species, same shapes, same art style - only the colours and the mood differ.`,
+  friday: `This one is the FRIDAY variant: a livelier look (vivid coral coat), sparkling excited eyes,
+ear tufts perked up and the body leaning forward as if about to bounce. Same species, same shapes,
+same art style - only the colours and the mood differ.`,
+};
 
 const KEY = process.env.GEMINI_API_KEY;
 if (!KEY) {
@@ -186,8 +211,8 @@ const matted = name => path.join(OUT, 'chars', ...name.split('/')) + '.png';
 
 async function runStage(stage, anchorRef) {
   const base = `${SPECIES}/${stage}`;
-  const idlePrompt = [STYLE, '', STAGES[stage], '', anchorRef ? SAME : '', '',
-    `POSE (idle): ${POSES.idle}`].join('\n');
+  const idlePrompt = [STYLE, '', STAGES[stage], '', FLAVOURS[SPECIES] ?? '', '',
+    anchorRef ? SAME : '', '', `POSE (idle): ${POSES.idle}`].join('\n');
   await make(`${base}/idle`, idlePrompt, anchorRef);
 
   const ref = matted(`${base}/idle`);
@@ -218,13 +243,17 @@ async function runEgg() {
 
 const GROUPS = {
   egg: runEgg,
-  baby: () => runStage('baby', matted(`${SPECIES}/baby/idle`)),
+  // 아기의 기준은 언제나 day 의 아기다. 종은 같은 생물의 색조 변주라서,
+  // 그 그림을 참조로 줘야 종이 달라져도 같은 아이로 보인다.
+  // (SPECIES 가 day 면 자기 자신이고, 원본이 이미 있으므로 건너뛴다)
+  baby: () => runStage('baby', matted('day/baby/idle')),
   child: () => runStage('child', matted(`${SPECIES}/baby/idle`)),
   adult: () => runStage('adult', matted(`${SPECIES}/child/idle`)),
   poop: async () => { await make('poop', [STYLE, '', POOP].join('\n'), null); return true; },
 };
 
 const wanted = process.argv.slice(2).filter(a => a in GROUPS);
+console.log(`species: ${SPECIES}`);
 const groups = wanted.length ? wanted : Object.keys(GROUPS);
 
 let failed = 0;

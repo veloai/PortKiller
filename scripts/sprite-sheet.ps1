@@ -19,6 +19,9 @@ $rows = @(
     @{ label = "baby";  dir = Join-Path $chars "day\baby";      files = @("idle", "walk1", "walk2", "eat", "happy", "sick", "sleep", "sulk") }
     @{ label = "child"; dir = Join-Path $chars "day\child";     files = @("idle", "walk1", "walk2", "eat", "happy", "sick", "sleep", "sulk") }
     @{ label = "adult"; dir = Join-Path $chars "day\adult";     files = @("idle", "walk1", "walk2", "eat", "happy", "sick", "sleep", "sulk") }
+    @{ label = "eve baby";  dir = Join-Path $chars "evening\baby";  files = @("idle", "walk1", "walk2", "eat", "happy", "sick", "sleep", "sulk") }
+    @{ label = "eve child"; dir = Join-Path $chars "evening\child"; files = @("idle", "walk1", "walk2", "eat", "happy", "sick", "sleep", "sulk") }
+    @{ label = "eve adult"; dir = Join-Path $chars "evening\adult"; files = @("idle", "walk1", "walk2", "eat", "happy", "sick", "sleep", "sulk") }
 )
 
 $cell = 132      # 128px sprite + a little air

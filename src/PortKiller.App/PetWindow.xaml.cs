@@ -23,6 +23,13 @@ public partial class PetWindow : Window
     /// <summary>먹기·기뻐하기처럼 잠깐 짓는 표정이 유지되는 시간.</summary>
     private static readonly TimeSpan ReactionHold = TimeSpan.FromSeconds(1.4);
 
+    /// <summary>
+    /// 주기 저장 간격. 원래는 <b>정상 종료 때만</b> 저장했는데, 그러면 작업 관리자로 끄거나
+    /// 로그오프하거나 튕기는 순간 그날 키운 것이 통째로 사라진다. 쓰기는 임시 파일에 쓰고
+    /// 이름을 바꾸는 방식이라(JsonSaveStore) 중간에 끊겨도 기존 파일이 깨지지 않는다.
+    /// </summary>
+    private static readonly TimeSpan SaveInterval = TimeSpan.FromSeconds(60);
+
     private readonly ISaveStore _store = new JsonSaveStore();
     private readonly ActivityMonitor _activity = new();
     private readonly Random _rng = new();
@@ -37,6 +44,7 @@ public partial class PetWindow : Window
     private DispatcherTimer? _gameLoop;
     private DateTimeOffset _lastTick = DateTimeOffset.Now;
     private DateTimeOffset _lastTooltipUpdate = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastSave = DateTimeOffset.Now;
 
     private Point _pressedAt;
     private bool _dragging;
@@ -71,7 +79,7 @@ public partial class PetWindow : Window
         CoverPrimaryScreen();
 
         _motion = new PetMotion(PetBody.Width, PetBody.Height, _rng);
-        _motion.PlaceOnGround(Width * 0.5 - PetBody.Width * 0.5, Bounds());
+        _motion.PlaceOnGround(DefaultX(), Bounds());
 
         Canvas.SetLeft(DebugPanel, 20);
         Canvas.SetTop(DebugPanel, 20);
@@ -106,6 +114,14 @@ public partial class PetWindow : Window
         _tray.StatsRequested += () => DebugPanel.Visibility =
             DebugPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
         _tray.AlwaysOnTopToggled += on => Topmost = on;
+
+        // 잠깐 치우기. 창만 숨기고 펫은 계속 산다 — 배고픔도 응아도 그대로 흐른다.
+        // 숨긴 상태는 저장하지 않는다. 껐다 켰는데 아무것도 안 보이면 고장으로 보인다.
+        _tray.VisibilityToggled += visible =>
+        {
+            if (visible) Show(); else Hide();
+        };
+
         _tray.NotebookRequested += OpenNotebook;
         _tray.ResetRequested += ConfirmAndReset;
         _tray.QuitRequested += Close;
@@ -144,7 +160,7 @@ public partial class PetWindow : Window
         _pet = NewPet();
         PoopLayer.Children.Clear();
         _poops.Clear();
-        _motion.PlaceOnGround(Width * 0.5 - PetBody.Width * 0.5, Bounds());
+        _motion.PlaceOnGround(DefaultX(), Bounds());
 
         _store.Save(BuildSave());
         RefreshFace();
@@ -197,6 +213,7 @@ public partial class PetWindow : Window
     {
         var data = _pet.ToSave(DateTimeOffset.Now);
         data.Notebook = _notebook.ToSave();
+        data.LastX = _motion?.X;
         return data;
     }
 
@@ -211,6 +228,15 @@ public partial class PetWindow : Window
 
     private MotionBounds Bounds() => new(0, Width, Height - GroundMargin);
 
+    /// <summary>
+    /// 한 번도 안 옮겼을 때 설 자리. <b>화면 한가운데가 아니라 오른쪽 끝 가까이</b>다.
+    ///
+    /// <para>가운데에 세우면 처음 켜자마자 보던 것을 가린다. 바탕화면 캐릭터는 눈에 띄어야 하지만
+    /// 일을 막으면 바로 지워진다. 오른쪽 아래는 트레이·알림이 사는 자리라 무언가 떠 있어도
+    /// 덜 거슬린다.</para>
+    /// </summary>
+    private double DefaultX() => Math.Max(0, Width - PetBody.Width - 160);
+
     // ---------- 게임 루프 ----------
 
     private void LoadPet()
@@ -218,6 +244,13 @@ public partial class PetWindow : Window
         var data = _store.Load();
         _pet = Wire(Pet.FromSave(data));
         _notebook = WireNotebook(Notebook.FromSave(data.Notebook));
+
+        // 지난번에 세워 둔 자리로 돌려놓는다. 화면이 좁아졌거나 모니터가 바뀌었을 수 있으니
+        // 지금 창 안으로 가둔다 — 안 그러면 화면 밖에 서서 영영 안 보인다.
+        if (data.LastX is { } savedX)
+        {
+            _motion.PlaceOnGround(Math.Clamp(savedX, 0, Math.Max(0, Width - PetBody.Width)), Bounds());
+        }
 
         var away = DateTimeOffset.Now - data.LastSeenAt;
         _pet.CatchUpOffline(away, DateTimeOffset.Now);
@@ -254,6 +287,7 @@ public partial class PetWindow : Window
             RefreshFace();
             RefreshDebug();
             RefreshTooltip(now);
+            SaveIfDue(now);
         };
         _gameLoop.Start();
     }
@@ -287,11 +321,17 @@ public partial class PetWindow : Window
             PetSprite.Visibility = Visibility.Visible;
             PetFace.Visibility = Visibility.Collapsed;
 
-            // 그림이 있으면 초록 동그라미는 치운다. 배경을 지워도 클릭은 막히지 않는다 —
-            // 완전히 투명한 픽셀은 창 밖으로 통과하기 때문이다(docs/verification/clickthrough.md).
+            // 그림이 있으면 초록 동그라미는 치운다.
+            //
+            // 배경을 null 로 두면 안 된다 — WPF 는 배경이 없는 요소를 <b>마우스 대상으로 치지 않는다.</b>
+            // 그러면 펫을 눌러도 집어 옮기기도 부화 클릭도 반응하지 않는다(실제로 그렇게 깨뜨렸다).
+            // Transparent 는 "투명하지만 있는 것"이라 마우스를 받는다.
+            //
+            // 이렇게 둬도 클릭 통과는 안 막힌다. 완전히 투명한 픽셀은 창 밖으로 넘어가서
+            // 앱에 도달조차 하지 않기 때문이다(docs/verification/clickthrough.md).
             if (PetBody.BorderThickness.Left != 0)
             {
-                PetBody.Background = null;
+                PetBody.Background = Brushes.Transparent;
                 PetBody.BorderThickness = new Thickness(0);
             }
             return;
@@ -369,6 +409,26 @@ public partial class PetWindow : Window
     /// 트레이 툴팁. 60프레임마다 갱신할 이유가 없어서 2초에 한 번만 건드린다.
     /// (NotifyIcon.Text 갱신은 값싸지 않다)
     /// </summary>
+    /// <summary>
+    /// 가끔 저장한다. 60프레임마다 디스크를 쓸 이유는 없고, 반대로 종료 때만 쓰면
+    /// 비정상 종료에 전부 잃는다. 실패해도 화면은 계속 돌아간다 —
+    /// 저장 한 번 실패로 펫이 죽으면 그게 더 큰 손해다.
+    /// </summary>
+    private void SaveIfDue(DateTimeOffset now)
+    {
+        if (now - _lastSave < SaveInterval) return;
+        _lastSave = now;
+
+        try
+        {
+            _store.Save(BuildSave());
+        }
+        catch (Exception)
+        {
+            // 디스크가 꽉 찼거나 정책이 막았을 수 있다. 다음 차례에 또 해 본다.
+        }
+    }
+
     private void RefreshTooltip(DateTimeOffset now)
     {
         if (_tray is null) return;

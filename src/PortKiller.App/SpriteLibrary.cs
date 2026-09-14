@@ -50,15 +50,36 @@ public sealed class SpriteLibrary
     public BitmapImage? Poop() => Load(Path.Combine(_root, "poop.png"));
 
     /// <summary>
-    /// 종·단계·포즈에 맞는 그림.
+    /// 아직 그림이 없는 종이 나왔을 때 대신 쓸 종.
     ///
-    /// <para>없으면 <b>같은 단계의 idle 로 물러선다</b>. 8포즈 중 일부만 들어온 동안에도
-    /// 캐릭터가 이모지로 튀지 않게 하려는 것이다 — 가만히 서 있는 편이 덜 어색하다.</para>
+    /// <para>종은 <b>부화한 시간대</b>로 정해진다(<see cref="SpeciesPicker"/>). 그래서 저녁에
+    /// 부화시키면 <c>evening</c> 이 되는데, 그 종 그림이 아직 없으면 캐릭터가 통째로 사라지고
+    /// 이모지가 검은 글자로 찍혀 나온다 — 실제로 그렇게 보였다. 그림이 덜 그려진 것과
+    /// <b>고장 난 것</b>은 화면에서 구분이 안 되므로, 있는 그림으로 내려간다.</para>
+    /// </summary>
+    private const string FallbackSpecies = "day";
+
+    /// <summary>
+    /// 종·단계·포즈에 맞는 그림. 셋 단계로 물러선다.
+    ///
+    /// <list type="number">
+    ///   <item>그 종·그 포즈</item>
+    ///   <item>그 종의 같은 단계 idle — 8포즈 중 일부만 들어온 동안 이모지로 튀지 않게</item>
+    ///   <item><see cref="FallbackSpecies"/> 의 같은 단계·같은 포즈 — 아직 안 그린 종을 위해</item>
+    /// </list>
     /// </summary>
     public BitmapImage? Character(string speciesId, LifeStage stage, PetPose pose)
     {
         if (string.IsNullOrWhiteSpace(speciesId)) return null;
 
+        var art = Find(speciesId, stage, pose);
+        if (art is not null) return art;
+
+        return Safe(speciesId) == FallbackSpecies ? null : Find(FallbackSpecies, stage, pose);
+    }
+
+    private BitmapImage? Find(string speciesId, LifeStage stage, PetPose pose)
+    {
         var dir = Path.Combine(_root, "chars", Safe(speciesId), StageFolder(stage));
         return Load(Path.Combine(dir, PoseFile(pose)))
             ?? (pose == PetPose.Idle ? null : Load(Path.Combine(dir, "idle.png")));

@@ -29,6 +29,16 @@ public sealed class SaveData
     public List<string> ActiveDays { get; set; } = new();
 
     public NotebookData? Notebook { get; set; }
+
+    /// <summary>
+    /// 마지막으로 서 있던 가로 위치. 창 왼쪽에서부터의 픽셀이다.
+    ///
+    /// <para>왜 저장하나: 안 하면 켤 때마다 화면 <b>정중앙</b>으로 돌아온다. 거슬려서 옆으로
+    /// 옮겨 놔도 다음 날 다시 한가운데에 서 있으면, 사용자 입장에서는 "옮기기가 안 되는" 것이다.</para>
+    ///
+    /// <para>세로는 저장하지 않는다 — 펫은 늘 바닥에 선다. null 이면 아직 한 번도 안 옮긴 것이다.</para>
+    /// </summary>
+    public double? LastX { get; set; }
 }
 
 public interface ISaveStore
