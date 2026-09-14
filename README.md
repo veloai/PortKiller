@@ -15,7 +15,7 @@ Workspace Utilizer & Open Development Tools
 - 수첩: 오늘 할 일 3개, 리마인더(한 번/매일/평일), 뽀모도로 25분 집중
 - 트레이 아이콘: 상태 보기 / 수첩 / 항상 위 / 자동 실행 / 초기화 / 종료
 
-아직 없는 것: 캐릭터 그림 (지금은 이모지)
+캐릭터 그림: 알 4장 + 다람쥐 1종 × 3단계 × 8포즈 + 응아 (직접 생성, `tools/gen-sprites.mjs`)
 
 ### 구조
 
@@ -46,4 +46,13 @@ dotnet run --project src/PortKiller.App
 
 ### 리소스
 
-캐릭터 이름과 그림은 직접 만들어 채운다. 다른 앱의 캐릭터·스프라이트는 가져오지 않는다.
+캐릭터 그림은 직접 만든다. 다른 앱의 캐릭터·스프라이트는 가져오지 않는다.
+
+```
+GEMINI_API_KEY=... node tools/gen-sprites.mjs       # 그림 뽑기 (돈이 나간다)
+powershell -File scripts/matte-batch.ps1            # 배경 벗겨 투명 PNG 로
+powershell -File scripts/sprite-sheet.ps1           # 전부 한 장에 모아 눈으로 확인
+```
+
+열쇠는 저장소에 두지 않는다 - 실행할 때 환경변수로만 준다.
+주문 문구·규격·확인 항목: [docs/assets/image-brief.md](docs/assets/image-brief.md)

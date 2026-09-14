@@ -12,4 +12,16 @@
     <ProjectReference Include="..\PortKiller.Core\PortKiller.Core.csproj" />
     <ProjectReference Include="..\PortKiller.Platform\PortKiller.Platform.csproj" />
   </ItemGroup>
+
+  <!-- 캐릭터 그림. exe 옆에 같은 폴더 모양 그대로 복사한다 - SpriteLibrary 가 그 자리를 본다.
+       리소스로 박지 않고 파일로 두는 이유: 그림 한 장을 갈아 끼울 때 다시 빌드하지 않아도 되고,
+       보안 검토에 "앱이 무엇을 들고 다니는지" 눈으로 보여 줄 수 있다.
+       _raw(모델이 준 원본)와 _candidates(비교용)는 배포본에 넣지 않는다. -->
+  <ItemGroup>
+    <Content Include="..\..\assets\sprites\**\*.png"
+             Exclude="..\..\assets\sprites\_raw\**;..\..\assets\sprites\_candidates\**">
+      <Link>assets\sprites\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

@@ -326,3 +326,78 @@ powershell -File scripts/matte-sprite.ps1 -In 받은그림.jpg -Out sprite.png
 출처: [Nano Banana PNG Fix](https://transparify.app/blog/gemini-transparent-background) ·
 [Why Google Gemini Fails at Transparent Backgrounds](https://discover.oreateai.com/discover/why-google-gemini-fails-at-transparent-backgrounds-and-how-to-fix-it) ·
 [Gemini API forum — Unable to create Transparent PNGs](https://discuss.ai.google.dev/t/unable-to-create-transparent-pngs/92868)
+
+---
+
+## 9. 실제로 만들어 넣었다 (2026-09-14) — 29장
+
+3번 후보(`day/baby/idle`)를 기준 그림으로 확정하고 나머지를 전부 뽑았다.
+
+| 묶음 | 장수 | 참조로 쓴 그림 |
+|---|---|---|
+| 알 | 4 | `egg/idle` (tilt·crack 이 이걸 참조) |
+| 아기 | 8 | 기준 그림 = 후보 3번 |
+| 소년기 | 8 | 아기 idle |
+| 성체 | 8 | 소년기 idle |
+| 응아 | 1 | 없음 |
+
+같은 캐릭터로 이어졌다. 단계마다 idle 을 먼저 확정하고 그 idle 을 참조로 나머지 7포즈를
+뽑는 순서를 지켰기 때문이다. **참조를 앞 단계 것으로 이어 붙이면 몸이 자라도 얼굴이 안 바뀐다.**
+
+### 통로: fortune 이 아니라 이 저장소가 직접 부른다
+
+처음에는 IVS 실험실(`POST /ivs/lab/image`)로 불렀는데, **참조 그림은 fortune DB 에 "확정 기준"
+으로 등록된 것만 쓸 수 있다.** 우리 펫을 남의 캐릭터 표에 등록해야 참조가 걸리는 구조다.
+그림은 PortKiller 것이고 그쪽 자료와 상관이 없으므로, 통로를 이 저장소로 가져왔다:
+`tools/gen-sprites.mjs`. 부르는 곳은 구글 API 한 군데뿐이고, 열쇠는 환경변수로만 받는다.
+
+### 배경 벗기기에서 걸린 것 세 가지
+
+1. **체크무늬만 가정한 규칙은 반만 맞았다.** 모델은 체크무늬 말고 **단색 판**(황갈색·청록색·자주색)
+   위에 그려 주기도 한다. "밝고 색기 없는 픽셀"을 지우는 첫 규칙은 그때 아무 일도 안 했고,
+   네 장이 색 네모를 두른 채로 통과했다. → 테두리에 **실제로 있는 색을 읽어서** 그 색을 지운다.
+2. **판 안에 판이 또 있었다.** 알 3장은 흰 종이 위에 크림색 액자, 그 안에 황갈색 판, 그 안에 알이었다.
+   한 번 지우고 멈추면 액자가 그림이 된다. → 남은 그림의 **테두리가 거의 한 색이면 그것도 판**으로 보고
+   한 번 더 지운다(최대 2번 — 캐릭터 외곽선은 균일한 사각형이 될 수 없으므로 저절로 멈춘다).
+3. **다시 지울 때 시작점이 이미 지워져 있어서 한 발도 못 나갔다.** "지워진 칸은 건너뛴다"로 짜면
+   두 번째 홍수가 자기 시작점에서 바로 죽는다. → "가 봤다"를 따로 기록한다.
+
+> 덤으로 하나 더: **PowerShell 변수 이름은 대소문자를 구분하지 않는다.** `$bx` 와 `$bX` 가 같은
+> 변수라서 최소/최대를 그렇게 이름 지으면 상자가 한 점으로 찌그러진다. 한참 헤맸다.
+
+### 확인한 것
+
+- 29장 전부 **알파 0 아니면 255** (반투명 0픽셀 — 안 보이는데 클릭 막는 자리가 없다)
+- 전부 256×256, 발바닥이 아래 기준선에 맞음 (`scripts/sprite-sheet.ps1` 의 빨간 줄로 확인)
+- 밝은 배경·어두운 배경 양쪽에서 96px 로 알아볼 수 있음
+- 실제 바탕화면에 떠서 그려지는 것 실측 (`scripts/verify-sprites.ps1`)
+
+### 크기 맞추기는 알고리즘으로 풀면 안 된다 (실패 기록)
+
+포즈마다 캔버스에 꽉 채워 넣으면, 웅크린 `sleep` 은 납작해서 머리가 커지고 알 `tilt2` 는 작게 나온다.
+그래서 **원본에서 캐릭터가 차지한 크기 비율대로 줄이는** 단계를 만들었다. 결과는 더 나빴다.
+
+원본에서 모델이 그리는 크기는 **아무 뜻이 없다.** 매번 다르게 그린다. 그 비율을 가져오니
+멀쩡하던 줄까지 흔들렸다 — 성체가 `idle` 만 100%, 걷기는 92% 가 되어 **걷기 시작하는 순간
+펫이 작아진다.** 원래 결함보다 큰 결함을 만든 것이다.
+
+- **화면에 보이는 크기를 일정하게** 하는 것이 목적이다. 원본 크기를 보존하는 것이 아니다.
+- 캔버스에 맞춰 넣는 원래 방식이 맞다. 그 단계는 되돌렸고 `normalize-sizes.ps1` 은 지웠다.
+- 크기가 튀는 장이 있으면 **그 장만 다시 뽑는다.** 주문에 "참조와 화면에서 차지하는 크기가
+  픽셀 단위로 같아야 한다 · 확대도 축소도 다시 자르기도 하지 마라" 를 넣으면 잡힌다.
+  장당 20초, 한 번 호출이면 끝난다. 코드로 풀 문제가 아니었다.
+
+**그래서 두 장만 다시 뽑았다.** `egg/tilt2` 와 `day/adult/sleep`. 주문에 넣은 문구:
+
+```
+SIZE IS CRITICAL. The attached reference and this new drawing are two frames of the same
+animation, so the subject must occupy EXACTLY the same amount of the frame as it does in the
+reference: same height in pixels, same width in pixels, same position, same distance from each
+edge. Do not zoom in, do not zoom out, do not re-crop. Only the pose changes.
+
+(sleep 에는 추가) Because it is curled up it is shorter than the standing reference - that is
+correct, do NOT enlarge it to fill the frame. THE HEAD MUST BE THE SAME SIZE IN PIXELS AS THE
+HEAD IN THE REFERENCE. Leave the empty space above it empty.
+```
+
+두 번 호출, 40초, 둘 다 한 번에 맞았다. 크기가 안 맞는 장이 또 나오면 이 문구를 쓴다.

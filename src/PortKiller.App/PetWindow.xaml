@@ -27,11 +27,20 @@
                 MouseLeftButtonDown="PetBody_MouseLeftButtonDown"
                 MouseMove="PetBody_MouseMove"
                 MouseLeftButtonUp="PetBody_MouseLeftButtonUp">
-            <TextBlock x:Name="PetFace"
-                       Text="🥚"
-                       FontSize="40"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center" />
+            <!-- 그림이 있으면 PetSprite 가 보이고, 아직 없으면 PetFace(이모지)로 돌아간다.
+                 둘을 겹쳐 두고 보이기만 바꾼다 - 자리를 옮기지 않아야 발 높이가 안 흔들린다. -->
+            <Grid>
+                <Image x:Name="PetSprite"
+                       Visibility="Collapsed"
+                       Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       IsHitTestVisible="False" />
+                <TextBlock x:Name="PetFace"
+                           Text="🥚"
+                           FontSize="40"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+            </Grid>
 
             <!-- 돌보기 메뉴. 펫을 우클릭하면 열린다. -->
             <Border.ContextMenu>

@@ -17,10 +17,17 @@ public partial class PetWindow : Window
     /// <summary>이 거리 안에서 손을 떼면 "끌었다"가 아니라 "눌렀다"로 본다.</summary>
     private const double DragThreshold = 4.0;
 
+    /// <summary>걷기 두 장을 번갈아 보여 주는 간격. 짧으면 종종걸음, 길면 느릿하다.</summary>
+    private static readonly TimeSpan WalkFrame = TimeSpan.FromMilliseconds(220);
+
+    /// <summary>먹기·기뻐하기처럼 잠깐 짓는 표정이 유지되는 시간.</summary>
+    private static readonly TimeSpan ReactionHold = TimeSpan.FromSeconds(1.4);
+
     private readonly ISaveStore _store = new JsonSaveStore();
     private readonly ActivityMonitor _activity = new();
     private readonly Random _rng = new();
     private readonly List<FrameworkElement> _poops = new();
+    private readonly SpriteLibrary _sprites = new();
 
     private Pet _pet = new();
     private Notebook _notebook = new();
@@ -34,6 +41,10 @@ public partial class PetWindow : Window
     private Point _pressedAt;
     private bool _dragging;
     private DateTimeOffset _bubbleHideAt = DateTimeOffset.MinValue;
+
+    /// <summary>잠깐 짓는 표정. 시간이 지나면 저절로 평소 얼굴로 돌아간다.</summary>
+    private PetPose? _reaction;
+    private DateTimeOffset _reactionUntil = DateTimeOffset.MinValue;
 
     public PetWindow()
     {
@@ -259,8 +270,35 @@ public partial class PetWindow : Window
             : Transform.Identity;
     }
 
+    /// <summary>
+    /// 지금 화면에 보여야 할 모습으로 맞춘다. 그림이 깔려 있으면 그림을, 없으면 이모지를 쓴다.
+    /// 게임 루프에서 초당 60번 불리므로 여기서 무거운 일을 하면 안 된다
+    /// (파일 찾기·디코딩은 <see cref="SpriteLibrary"/> 가 한 번만 하고 기억한다).
+    /// </summary>
     private void RefreshFace()
     {
+        var sprite = _pet.Stage == LifeStage.Egg
+            ? _sprites.Egg(EggPose())
+            : _sprites.Character(_pet.SpeciesId, _pet.Stage, CurrentPose());
+
+        if (sprite is not null)
+        {
+            PetSprite.Source = sprite;
+            PetSprite.Visibility = Visibility.Visible;
+            PetFace.Visibility = Visibility.Collapsed;
+
+            // 그림이 있으면 초록 동그라미는 치운다. 배경을 지워도 클릭은 막히지 않는다 —
+            // 완전히 투명한 픽셀은 창 밖으로 통과하기 때문이다(docs/verification/clickthrough.md).
+            if (PetBody.BorderThickness.Left != 0)
+            {
+                PetBody.Background = null;
+                PetBody.BorderThickness = new Thickness(0);
+            }
+            return;
+        }
+
+        PetSprite.Visibility = Visibility.Collapsed;
+        PetFace.Visibility = Visibility.Visible;
         PetFace.Text = _pet.Stage switch
         {
             LifeStage.Egg => "🥚",
@@ -272,6 +310,48 @@ public partial class PetWindow : Window
         if (_pet.IsSick) PetFace.Text = "🤒";
         else if (_pet.IsAsleep) PetFace.Text = "😴";
         else if (_pet.IsSulking) PetFace.Text = "😤";
+    }
+
+    /// <summary>
+    /// 알은 부화가 가까울수록 금이 간 그림을 보여 주고, 클릭 직후에는 좌우로 흔들린다.
+    /// 흔들림은 <see cref="Pet.HatchClicks"/> 의 홀짝으로 가른다 — 따로 타이머를 두면
+    /// 클릭과 어긋나 "눌렀는데 반응이 없다"가 된다.
+    /// </summary>
+    private string EggPose()
+    {
+        if (_pet.HatchClicks >= Balance.HatchClicksRequired - 5) return "crack";
+        if (_reactionUntil > DateTimeOffset.Now) return _pet.HatchClicks % 2 == 0 ? "tilt1" : "tilt2";
+        return "idle";
+    }
+
+    /// <summary>
+    /// 상태가 겹칠 때 무엇을 보여 줄지 정한다. 위에 있는 것이 이긴다.
+    /// 아픈 것과 삐친 것이 동시에 참일 수 있는데, 그때는 아픈 쪽이 더 급한 소식이다.
+    /// </summary>
+    private PetPose CurrentPose()
+    {
+        var now = DateTimeOffset.Now;
+
+        if (_pet.IsSick) return PetPose.Sick;
+        if (_pet.IsAsleep) return PetPose.Sleep;
+        if (_reaction is { } react && now < _reactionUntil) return react;
+        if (_pet.IsSulking) return PetPose.Sulk;
+
+        return _motion.Activity switch
+        {
+            // 뛰어오르거나 떨어지는 중에는 들뜬 포즈를 쓴다. 그림을 따로 뽑지 않으려고
+            // happy 를 겸용하기로 한 것이다(docs/assets/image-brief.md 3절).
+            PetActivity.Jump or PetActivity.Fall or PetActivity.Dragged => PetPose.Happy,
+            PetActivity.Walk => (now.Ticks / WalkFrame.Ticks) % 2 == 0 ? PetPose.Walk1 : PetPose.Walk2,
+            _ => PetPose.Idle,
+        };
+    }
+
+    /// <summary>잠깐 짓는 표정을 걸어 둔다. 시간이 지나면 <see cref="CurrentPose"/> 가 알아서 뗀다.</summary>
+    private void React(PetPose pose)
+    {
+        _reaction = pose;
+        _reactionUntil = DateTimeOffset.Now + ReactionHold;
     }
 
     private void RefreshDebug()
@@ -373,6 +453,17 @@ public partial class PetWindow : Window
         if (sender is not MenuItem item || !TryReadAction(item, out var action)) return;
 
         var result = _pet.ApplyCare(action, DateTimeOffset.Now);
+
+        // 받아들여졌을 때만 표정을 바꾼다. 거절(배가 불러 못 먹음 등)에도 좋아하면 거짓말이 된다.
+        if (result == CareResult.Done)
+        {
+            switch (action)
+            {
+                case CareAction.Feed or CareAction.Snack: React(PetPose.Eat); break;
+                case CareAction.Play or CareAction.Pet: React(PetPose.Happy); break;
+            }
+        }
+
         SyncPoops();
         Say(CareText.For(action, result, _rng));
         RefreshFace();
@@ -405,15 +496,27 @@ public partial class PetWindow : Window
     {
         for (var i = 0; i < count; i++)
         {
-            var poop = new Border
-            {
-                Width = 40,
-                Height = 40,
-                CornerRadius = new CornerRadius(20),
-                Background = new SolidColorBrush(Color.FromRgb(0x8D, 0x6E, 0x4A)),
-                Cursor = Cursors.Hand,
-                ToolTip = "클릭해서 치우기",
-            };
+            // 그림이 있으면 그림을, 없으면 갈색 동그라미를 쓴다.
+            var art = _sprites.Poop();
+            FrameworkElement poop = art is null
+                ? new Border
+                {
+                    Width = 40,
+                    Height = 40,
+                    CornerRadius = new CornerRadius(20),
+                    Background = new SolidColorBrush(Color.FromRgb(0x8D, 0x6E, 0x4A)),
+                    Cursor = Cursors.Hand,
+                    ToolTip = "클릭해서 치우기",
+                }
+                : new Image
+                {
+                    Width = 40,
+                    Height = 40,
+                    Source = art,
+                    Stretch = Stretch.Uniform,
+                    Cursor = Cursors.Hand,
+                    ToolTip = "클릭해서 치우기",
+                };
             poop.MouseLeftButtonDown += Poop_Clicked;
 
             // 펫 근처 바닥에 흩어 놓되, 펫 몸통에 가려 안 보이는 일이 없도록 최소 거리를 둔다.
@@ -484,10 +587,12 @@ public partial class PetWindow : Window
         {
             // 부화하면 StageChanged 가 대신 말하므로 여기서는 잠자코 있는다.
             _pet.RegisterEggClick(now);
+            React(PetPose.Idle);   // 알은 포즈 대신 "방금 눌렸다"는 사실만 쓴다(EggPose 참고)
         }
         else
         {
             var result = _pet.ApplyCare(CareAction.Pet, now);
+            if (result == CareResult.Done) React(PetPose.Happy);
             Say(CareText.For(CareAction.Pet, result, _rng));
         }
 
