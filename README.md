@@ -14,6 +14,7 @@ Workspace Utilizer & Open Development Tools
 - 응아: 시간이 지나면 생기고 클릭하면 치워진다
 - 수첩: 오늘 할 일 3개, 리마인더(한 번/매일/평일), 뽀모도로 25분 집중
 - 트레이 아이콘: 상태 보기 / 수첩 / 항상 위 / 자동 실행 / 초기화 / 종료
+- 아이콘: 트레이·exe 둘 다 캐릭터 얼굴 (16~256px 여러 크기를 담은 .ico)
 
 캐릭터 그림: 알 4장 + 다람쥐 1종 × 3단계 × 8포즈 + 응아 (직접 생성, `tools/gen-sprites.mjs`)
 
@@ -52,6 +53,7 @@ dotnet run --project src/PortKiller.App
 GEMINI_API_KEY=... node tools/gen-sprites.mjs       # 그림 뽑기 (돈이 나간다)
 powershell -File scripts/matte-batch.ps1            # 배경 벗겨 투명 PNG 로
 powershell -File scripts/sprite-sheet.ps1           # 전부 한 장에 모아 눈으로 확인
+powershell -File scripts/make-ico.ps1 -In assets/icons/head.png -Out assets/icons/app.ico
 ```
 
 열쇠는 저장소에 두지 않는다 - 실행할 때 환경변수로만 준다.

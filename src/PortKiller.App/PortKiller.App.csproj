@@ -4,6 +4,9 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 탐색기·작업 표시줄·Alt+Tab 이 쓰는 exe 아이콘. 여러 크기를 담은 .ico 라
+         윈도우가 자리마다 맞는 크기를 골라 간다. scripts/make-ico.ps1 이 만든다. -->
+    <ApplicationIcon>..\..\assets\icons\app.ico</ApplicationIcon>
     <AssemblyName>PortKillerPet</AssemblyName>
     <RootNamespace>PortKiller.App</RootNamespace>
   </PropertyGroup>
@@ -21,6 +24,13 @@
     <Content Include="..\..\assets\sprites\**\*.png"
              Exclude="..\..\assets\sprites\_raw\**;..\..\assets\sprites\_candidates\**">
       <Link>assets\sprites\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+
+    <!-- 트레이 아이콘. TrayIcon.CreateIcon 이 이 자리를 본다. app.ico 는 위에서 exe 에
+         박히므로 따로 복사하지 않는다. -->
+    <Content Include="..\..\assets\icons\tray.ico">
+      <Link>assets\icons\tray.ico</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

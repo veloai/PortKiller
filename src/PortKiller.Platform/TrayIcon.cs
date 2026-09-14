@@ -1,5 +1,7 @@
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
 using System.Windows.Forms;
 
 namespace PortKiller.Platform;
@@ -146,13 +148,35 @@ public sealed class TrayIcon : IDisposable
     }
 
     /// <summary>
-    /// 리소스 파일 없이 코드로 그린다. 그림 파일을 배포물에 넣으면 서명·검토 대상이 하나 늘어난다.
-    /// GetHicon 이 만든 핸들은 Icon.Dispose 로는 안 없어지지만, DestroyIcon 을 부르려면
+    /// exe 옆의 <c>assets/icons/tray.ico</c> 를 쓴다. 그 파일이 없으면 코드로 파란 원을 그린다.
+    ///
+    /// <para>왜 .ico 파일인가: 트레이는 화면 배율에 따라 16·20·24·32px 중 하나를 골라 간다.
+    /// 한 크기만 주면 윈도우가 직접 줄이는데, 그 결과가 우리가 미리 줄여 둔 것보다 나쁘다.
+    /// .ico 는 여러 크기를 한 파일에 담아서 윈도우가 <b>고르게</b> 한다.</para>
+    ///
+    /// <para>없을 때 대신 그리는 원을 남겨 두는 이유: 그림 파일이 빠지거나 읽기에 실패해도
+    /// 트레이 아이콘은 떠야 한다. 트레이가 없으면 앱을 끌 방법이 사라진다 —
+    /// 작업 표시줄에도 안 나오는 창이기 때문이다.</para>
+    ///
+    /// <para>GetHicon 이 만든 핸들은 Icon.Dispose 로는 안 없어지지만, DestroyIcon 을 부르려면
     /// 외부 함수 선언을 새로 늘려야 한다. 프로그램당 한 번만 만드는 핸들 하나와
-    /// "외부 함수 호출 목록이 늘어나는 것" 중에서 앞을 택했다.
+    /// "외부 함수 호출 목록이 늘어나는 것" 중에서 앞을 택했다.</para>
     /// </summary>
     private static Icon CreateIcon()
     {
+        var file = Path.Combine(AppContext.BaseDirectory, "assets", "icons", "tray.ico");
+        if (File.Exists(file))
+        {
+            try
+            {
+                return new Icon(file);
+            }
+            catch (Exception)
+            {
+                // 깨진 아이콘 파일 하나로 앱이 못 뜨게 두지 않는다. 아래 원으로 내려간다.
+            }
+        }
+
         using var bitmap = new Bitmap(32, 32);
         using (var g = Graphics.FromImage(bitmap))
         {

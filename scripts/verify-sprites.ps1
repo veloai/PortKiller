@@ -1,65 +1,108 @@
 # TEST HARNESS ONLY - not shipped. ASCII only (Windows PowerShell reads .ps1 as ANSI).
 #
-# Proves the sprites are actually on screen, not just on disk:
-#   1. starts the app
-#   2. grabs the strip of desktop the pet stands on
-#   3. counts how many pixels of that strip are NOT the desktop behind it
+# Proves the sprites really render, not just that the files exist on disk.
 #
-# A blank strip means the art did not load and the emoji fallback (or nothing) is showing.
+# It asks the window to draw itself into a bitmap (PrintWindow with PW_RENDERFULLCONTENT)
+# instead of screenshotting the desktop. The first version did compare desktop before/after
+# and reported FAIL the day the Windows widget board happened to be open over the spot the
+# pet stands on - the test was measuring the desktop, not the app.
+#
+# A pass means: the window drew a shape, that shape is a small patch rather than a filled
+# rectangle (so the transparent area really is transparent), and it sits near the bottom.
 
 Add-Type -AssemblyName System.Drawing
-Add-Type -AssemblyName System.Windows.Forms
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class Win {
+    [DllImport("user32.dll")]
+    public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT { public int Left, Top, Right, Bottom; }
+}
+"@
 
 $exe = "C:\Monster\Repo\PortKiller\src\PortKiller.App\bin\Debug\net9.0-windows\PortKillerPet.exe"
 $shot = "$env:TEMP\pk-sprites.png"
 $out = @()
-
-# the whole bottom band of the work area - the pet can stand anywhere along it
-$area = [System.Windows.Forms.SystemInformation]::WorkingArea
-$W = $area.Width
-$H = 260
-$stripY = $area.Bottom - $H
-
-$before = New-Object System.Drawing.Bitmap($W, $H)
-$g = [System.Drawing.Graphics]::FromImage($before)
 $proc = $null
 
 try {
-    $g.CopyFromScreen($area.Left, $stripY, 0, 0, (New-Object System.Drawing.Size($W, $H)))
-    $g.Dispose()
-
     $proc = Start-Process -FilePath $exe -PassThru
     Start-Sleep -Seconds 6
 
-    $after = New-Object System.Drawing.Bitmap($W, $H)
-    $g2 = [System.Drawing.Graphics]::FromImage($after)
-    $g2.CopyFromScreen($area.Left, $stripY, 0, 0, (New-Object System.Drawing.Size($W, $H)))
-    $g2.Dispose()
+    $hwnd = [IntPtr]::Zero
+    foreach ($h in (Get-Process -Id $proc.Id).Threads) { }
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+    $AE = [System.Windows.Automation.AutomationElement]
+    $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ProcessIdProperty, $proc.Id)
+    $wins = $AE::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
+    foreach ($w in $wins) { $hwnd = [IntPtr]$w.Current.NativeWindowHandle; break }
+    if ($hwnd -eq [IntPtr]::Zero) { throw "pet window not found" }
 
-    # count pixels that changed when the app appeared - that is the pet
-    $changed = 0
-    for ($y = 0; $y -lt $H; $y += 2) {
-        for ($x = 0; $x -lt $W; $x += 2) {
-            $a = $before.GetPixel($x, $y); $b = $after.GetPixel($x, $y)
-            if ([Math]::Abs($a.R - $b.R) + [Math]::Abs($a.G - $b.G) + [Math]::Abs($a.B - $b.B) -gt 40) {
-                $changed++
-            }
+    $rect = New-Object Win+RECT
+    [void][Win]::GetWindowRect($hwnd, [ref]$rect)
+    $W = $rect.Right - $rect.Left
+    $H = $rect.Bottom - $rect.Top
+
+    $bmp = New-Object System.Drawing.Bitmap($W, $H, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $hdc = $g.GetHdc()
+    # 2 = PW_RENDERFULLCONTENT, needed for a composited (AllowsTransparency) window
+    $ok = [Win]::PrintWindow($hwnd, $hdc, 2)
+    $g.ReleaseHdc($hdc)
+    $g.Dispose()
+    if (-not $ok) { throw "PrintWindow refused to draw the window" }
+
+    $data = $bmp.LockBits((New-Object System.Drawing.Rectangle(0, 0, $W, $H)),
+                          [System.Drawing.Imaging.ImageLockMode]::ReadOnly,
+                          [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $px = New-Object byte[] ($W * $H * 4)
+    [System.Runtime.InteropServices.Marshal]::Copy($data.Scan0, $px, 0, $px.Length)
+    $bmp.UnlockBits($data)
+
+    # PrintWindow gives back an opaque surface, so "drawn" means "not the black it was
+    # cleared to". Count that, and find where it sits.
+    $drawn = 0; $lox = $W; $hix = -1; $loy = $H; $hiy = -1
+    for ($y = 0; $y -lt $H; $y++) {
+        for ($x = 0; $x -lt $W; $x++) {
+            $i = ($y * $W + $x) * 4
+            if (($px[$i] + $px[$i+1] + $px[$i+2]) -lt 24) { continue }
+            $drawn++
+            if ($x -lt $lox) { $lox = $x }
+            if ($x -gt $hix) { $hix = $x }
+            if ($y -lt $loy) { $loy = $y }
+            if ($y -gt $hiy) { $hiy = $y }
         }
     }
+    $bmp.Save($shot, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bmp.Dispose()
 
-    $after.Save($shot, [System.Drawing.Imaging.ImageFormat]::Png)
-    $after.Dispose()
-
-    $out += "strip          : ${W}x${H} across the bottom of the work area"
-    $out += "changed pixels : $changed (sampled every 2nd pixel, so ~1/4 of the real count)"
-    $out += "screenshot     : $shot"
+    $share = [Math]::Round(100.0 * $drawn / ($W * $H), 2)
+    $out += "window     : ${W}x${H} at $($rect.Left),$($rect.Top)"
+    $out += "drawn      : $drawn px (${share}% of the window)"
+    if ($hix -ge 0) {
+        $out += "drawn area : $lox,$loy -> $hix,$hiy  ($(($hix-$lox+1))x$(($hiy-$loy+1)))"
+        $out += "bottom gap : $($H - 1 - $hiy) px above the window's bottom edge"
+    }
+    $out += "screenshot : $shot"
     $out += ""
-    if ($changed -gt 200) { $out += "RESULT: PASS - something was drawn where the pet stands" }
-    else { $out += "RESULT: FAIL - the pet area is unchanged; the art did not render" }
+
+    $something = $drawn -gt 500
+    $notEverything = $share -lt 25
+    $nearBottom = ($hiy -ge 0) -and (($H - 1 - $hiy) -lt 80)
+    $out += "something drawn        : $something"
+    $out += "most of it transparent : $notEverything"
+    $out += "standing near the floor: $nearBottom"
+    $out += ""
+    if ($something -and $notEverything -and $nearBottom) { $out += "RESULT: PASS" }
+    else { $out += "RESULT: FAIL" }
 }
 catch { $out += "ERROR: $_" }
 finally {
-    $before.Dispose()
     if ($proc -and -not $proc.HasExited) { $proc.Kill(); $proc.WaitForExit(3000) }
     $out += "app terminated"
 }

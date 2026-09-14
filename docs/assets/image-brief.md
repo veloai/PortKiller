@@ -401,3 +401,50 @@ HEAD IN THE REFERENCE. Leave the empty space above it empty.
 ```
 
 두 번 호출, 40초, 둘 다 한 번에 맞았다. 크기가 안 맞는 장이 또 나오면 이 문구를 쓴다.
+
+---
+
+## 10. 아이콘 (2026-09-14) — 트레이·exe
+
+성체 `idle` 을 참조로 **머리만** 그린 그림 한 장(`assets/icons/head.png`)에서 두 개를 만든다.
+
+- `assets/icons/tray.ico` — 16·20·24·32·40·48·64
+- `assets/icons/app.ico` — 위 + 128·256 (exe 에 박힌다)
+
+### 왜 .ico 를 손으로 쓰나
+
+`System.Drawing` 은 아이콘을 **한 크기만** 저장할 수 있다. 그런데 윈도우는 자리마다 다른
+크기를 골라 간다 — 트레이·제목줄 16, Alt+Tab 32, 탐색기 목록 48, 큰 아이콘 보기 256.
+한 크기만 주면 윈도우가 직접 줄이는데, 그 결과가 우리가 미리 줄여 둔 것보다 나쁘다.
+그래서 `scripts/make-ico.ps1` 이 ICO 구조를 직접 쓴다. 64px 이하는 32비트 DIB,
+256px 은 PNG(비스타 이후 큰 아이콘의 표준 저장 방식 — 안 그러면 그 한 장으로 256KB 가 는다).
+
+**스프라이트와 달리 아이콘은 알파를 부드럽게 둔다.** 아이콘은 클릭 통과와 상관이 없고,
+16px 에서 딱딱한 가장자리는 지저분해 보인다.
+
+### 주문 문구에서 중요한 줄
+
+```
+IT MUST STAY READABLE AT 16x16 PIXELS. That is the only thing that matters.
+Strip every small detail: no nose shading, no cheek blush, no individual hairs,
+no inner ear lines, no whiskers. Eyes are two simple dark dots.
+```
+
+두 장 뽑아 16px 로 줄여 놓고 골랐다. 더 단순한 쪽(`head-b`)이 이긴다 — **얼굴 전체를
+넣으려 하면 뭉개진다. 머리 실루엣 하나로 승부해야 한다.**
+
+### 손으로 ICO 를 쓸 때 밟은 함정 3개
+
+1. **BITMAPINFOHEADER 의 높이는 두 배로 적는다.** 색 줄과 그 아래 마스크 줄을 함께 세기 때문이다.
+2. **PowerShell 의 `[int]` 는 내림이 아니라 반올림이다.** `[int](7/8)` 이 1 이라
+   마스크 바이트 자리가 밀려 배열 밖을 짚었다. `[Math]::Floor` 를 써야 한다.
+3. **`powershell -File` 은 인자를 전부 문자열로 넘긴다.** `[int[]]$Sizes` 는 그 순간 깨진다 —
+   쉼표로 이은 문자열로 받아 직접 쪼갠다.
+
+> 그리고 또 대소문자 함정: `$out`(MemoryStream)이 파라미터 `$Out`(경로)과 같은 변수였다.
+> 이 저장소에서 **세 번째** 같은 사고다. PowerShell 에서는 이름이 같으면 같은 변수다.
+
+### 확인
+
+`System.Drawing.Icon` 으로 다시 열어 보고 끝낸다 — 잘못 쓴 파일이 트레이가 아니라
+**만드는 자리에서** 터지게 하려는 것이다. exe 아이콘은 `ExtractAssociatedIcon` 으로 꺼내 봤다.
