@@ -88,9 +88,15 @@ public sealed class Pet
         Stats.Cleanliness -= Balance.CleanlinessDecayPerHour * hours;
 
         if (IsAsleep)
+        {
             Stats.Energy += Balance.SleepEnergyRecoveryPerHour * hours;
+            // 기운을 다 채우면 알아서 깬다. 안 그러면 재운 뒤 영영 자고 있게 된다.
+            if (Stats.Energy >= 100) IsAsleep = false;
+        }
         else
+        {
             Stats.Energy -= Balance.EnergyDecayPerHour * hours;
+        }
 
         ApplyPoop(now, offline, hours);
         ApplyHealth(hours);
@@ -213,10 +219,10 @@ public sealed class Pet
 
     // ---------- 돌보기 ----------
 
-    /// <summary>돌보기를 적용한다. 지금 할 수 없는 행동이면 false 를 준다.</summary>
-    public bool ApplyCare(CareAction action, DateTimeOffset now)
+    /// <summary>돌보기를 적용한다. 못 하는 행동이면 이유를 돌려주고 아무것도 바꾸지 않는다.</summary>
+    public CareResult ApplyCare(CareAction action, DateTimeOffset now)
     {
-        if (Stage == LifeStage.Egg) return false;
+        if (Stage == LifeStage.Egg) return CareResult.StillAnEgg;
 
         switch (action)
         {
@@ -230,21 +236,25 @@ public sealed class Pet
                 ScheduleDigestion(now);
                 break;
             case CareAction.Play:
-                if (IsSick) return false;
+                if (IsSick) return CareResult.TooSickToPlay;
                 Stats.Happiness += 20;
                 Stats.Energy -= 10;
+                IsAsleep = false;
                 break;
             case CareAction.Medicine:
-                if (!IsSick) return false;
+                if (!IsSick) return CareResult.NotSick;
                 Stats.Health += 40;
                 break;
             case CareAction.Clean:
-                Stats.Cleanliness += 15;
+                // 치울 응아가 없으면 청결도만 올려주는 게 아니라 아예 거절한다.
+                // 버튼을 계속 눌러 청결도를 100으로 채우는 길을 막는 것이기도 하다.
+                if (!CleanOnePoop()) return CareResult.AlreadyClean;
                 break;
             case CareAction.Pet:
                 Stats.Happiness += 5;
                 break;
             case CareAction.Sleep:
+                if (IsAsleep) return CareResult.AlreadyAsleep;
                 IsAsleep = true;
                 break;
         }
@@ -252,7 +262,7 @@ public sealed class Pet
         CareCount++;
         NoteActiveDay(now);
         RefreshConditions();
-        return true;
+        return CareResult.Done;
     }
 
     /// <summary>

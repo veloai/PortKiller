@@ -99,7 +99,7 @@ public class PetTests
     {
         var pet = Hatched();
 
-        Assert.False(pet.ApplyCare(CareAction.Medicine, T0));
+        Assert.Equal(CareResult.NotSick, pet.ApplyCare(CareAction.Medicine, T0));
     }
 
     [Fact]

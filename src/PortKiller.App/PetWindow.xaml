@@ -32,6 +32,36 @@
                        FontSize="40"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center" />
+
+            <!-- 돌보기 메뉴. 펫을 우클릭하면 열린다. -->
+            <Border.ContextMenu>
+                <ContextMenu x:Name="CareMenu" Opened="CareMenu_Opened">
+                    <MenuItem Header="🍚  먹이"   Tag="Feed"     Click="CareMenu_Click" />
+                    <MenuItem Header="🍪  간식"   Tag="Snack"    Click="CareMenu_Click" />
+                    <MenuItem Header="🎾  놀기"   Tag="Play"     Click="CareMenu_Click" />
+                    <Separator />
+                    <MenuItem Header="🧹  청소"   Tag="Clean"    Click="CareMenu_Click" />
+                    <MenuItem Header="💊  약"     Tag="Medicine" Click="CareMenu_Click" />
+                    <MenuItem Header="😴  재우기" Tag="Sleep"    Click="CareMenu_Click" />
+                </ContextMenu>
+            </Border.ContextMenu>
+        </Border>
+
+        <!-- 말풍선. 펫을 따라다니며, 할 말이 없으면 숨는다. -->
+        <Border x:Name="SpeechBubble"
+                Visibility="Collapsed"
+                Background="#FFFFFFFF"
+                BorderBrush="#FF3F7A38"
+                BorderThickness="2"
+                CornerRadius="12"
+                Padding="12,7"
+                MaxWidth="260"
+                Cursor="Hand"
+                MouseLeftButtonDown="SpeechBubble_Clicked">
+            <TextBlock x:Name="SpeechText"
+                       Foreground="#FF1E1E1E"
+                       FontSize="13"
+                       TextWrapping="Wrap" />
         </Border>
 
         <Border x:Name="DebugPanel"

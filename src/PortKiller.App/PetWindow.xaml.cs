@@ -31,6 +31,7 @@ public partial class PetWindow : Window
 
     private Point _pressedAt;
     private bool _dragging;
+    private DateTimeOffset _bubbleHideAt = DateTimeOffset.MinValue;
 
     public PetWindow()
     {
@@ -99,6 +100,7 @@ public partial class PetWindow : Window
 
         _store.Save(_pet.ToSave(DateTimeOffset.Now));
         RefreshFace();
+        Say(CareText.EggGreeting);
     }
 
     /// <summary>알부터 시작하는 새 펫.</summary>
@@ -110,8 +112,13 @@ public partial class PetWindow : Window
     /// </summary>
     private Pet Wire(Pet pet)
     {
-        pet.StageChanged += _ => Dispatcher.Invoke(RefreshFace);
-        pet.Pooped += count => Dispatcher.Invoke(() => SpawnPoops(count));
+        pet.StageChanged += stage => Dispatcher.Invoke(() =>
+        {
+            RefreshFace();
+            Say(CareText.StageUp(stage));
+        });
+        pet.Evolved += tier => Dispatcher.Invoke(() => Say(CareText.Evolved(tier)));
+        pet.Pooped += _ => Dispatcher.Invoke(SyncPoops);
         return pet;
     }
 
@@ -136,10 +143,9 @@ public partial class PetWindow : Window
         var away = DateTimeOffset.Now - data.LastSeenAt;
         _pet.CatchUpOffline(away, DateTimeOffset.Now);
 
-        // 저장된 응아 개수만큼 화면에 되살린다.
-        // CatchUpOffline 이 이미 이벤트로 만든 것과 겹치지 않게 모자란 만큼만 놓는다.
-        SpawnPoops(_pet.PoopsOnGround - _poops.Count);
+        SyncPoops();
         RefreshFace();
+        Say(CareText.Greeting(_pet.Stage, _rng));
     }
 
     private void StartGameLoop()
@@ -162,6 +168,9 @@ public partial class PetWindow : Window
                 _motion.Update(delta, Bounds(), _pet.IsAsleep);
 
             ApplyMotionToScreen();
+            PositionBubble();
+            if (_bubbleHideAt != DateTimeOffset.MinValue && now >= _bubbleHideAt) HideBubble();
+
             RefreshFace();
             RefreshDebug();
             RefreshTooltip(now);
@@ -222,7 +231,106 @@ public partial class PetWindow : Window
             : $"배부름 {_pet.Stats.Hunger:F0} · 행복 {_pet.Stats.Happiness:F0} · 응아 {_pet.PoopsOnGround}");
     }
 
+    // ---------- 말풍선 ----------
+
+    /// <summary>한 마디 시킨다. 글자 수에 따라 읽을 시간을 준다.</summary>
+    private void Say(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line)) return;
+
+        SpeechText.Text = line;
+        SpeechBubble.Visibility = Visibility.Visible;
+
+        // 짧은 말이 너무 빨리 사라지지 않게 바닥을 두고, 긴 말은 더 오래 띄운다.
+        var seconds = Math.Clamp(1.8 + line.Length * 0.12, 2.5, 7.0);
+        _bubbleHideAt = DateTimeOffset.Now.AddSeconds(seconds);
+
+        PositionBubble();
+    }
+
+    private void SpeechBubble_Clicked(object sender, MouseButtonEventArgs e)
+    {
+        HideBubble();
+        e.Handled = true;
+    }
+
+    private void HideBubble()
+    {
+        SpeechBubble.Visibility = Visibility.Collapsed;
+        _bubbleHideAt = DateTimeOffset.MinValue;
+    }
+
+    /// <summary>말풍선을 펫 머리 위에 붙인다. 화면 밖으로 삐져나가지 않게 가둔다.</summary>
+    private void PositionBubble()
+    {
+        if (SpeechBubble.Visibility != Visibility.Visible) return;
+
+        SpeechBubble.UpdateLayout();
+        var w = SpeechBubble.ActualWidth;
+        var h = SpeechBubble.ActualHeight;
+
+        var x = Math.Clamp(_motion.X + PetBody.Width * 0.5 - w * 0.5, 0, Math.Max(0, Width - w));
+        var y = Math.Max(0, _motion.Y - h - 8);
+
+        Canvas.SetLeft(SpeechBubble, x);
+        Canvas.SetTop(SpeechBubble, y);
+    }
+
+    // ---------- 돌보기 메뉴 ----------
+
+    /// <summary>
+    /// 메뉴를 열 때마다 지금 할 수 있는 것만 켠다.
+    /// 눌러 봐야 거절당하는 항목을 켜 두면 사용자가 헛수고를 한다.
+    /// </summary>
+    private void CareMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        foreach (var item in CareMenu.Items.OfType<MenuItem>())
+        {
+            if (!TryReadAction(item, out var action)) continue;
+
+            item.IsEnabled = _pet.Stage != LifeStage.Egg && action switch
+            {
+                CareAction.Medicine => _pet.IsSick,
+                CareAction.Play => !_pet.IsSick,
+                CareAction.Clean => _pet.PoopsOnGround > 0,
+                CareAction.Sleep => !_pet.IsAsleep,
+                _ => true,
+            };
+        }
+    }
+
+    private void CareMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item || !TryReadAction(item, out var action)) return;
+
+        var result = _pet.ApplyCare(action, DateTimeOffset.Now);
+        SyncPoops();
+        Say(CareText.For(action, result, _rng));
+        RefreshFace();
+        RefreshDebug();
+    }
+
+    private static bool TryReadAction(MenuItem item, out CareAction action)
+        => Enum.TryParse(item.Tag as string, out action);
+
     // ---------- 응아 ----------
+
+    /// <summary>
+    /// 화면의 응아 개수를 두뇌가 알고 있는 개수에 맞춘다.
+    /// 늘거나 주는 경로가 여러 개(시간 경과·메뉴 청소·응아 클릭·초기화)라서,
+    /// 각 경로에서 따로 더하고 빼면 언젠가 어긋난다. 한 방향으로 맞추는 쪽이 안전하다.
+    /// </summary>
+    private void SyncPoops()
+    {
+        while (_poops.Count > _pet.PoopsOnGround)
+        {
+            var last = _poops[^1];
+            PoopLayer.Children.Remove(last);
+            _poops.RemoveAt(_poops.Count - 1);
+        }
+
+        SpawnPoops(_pet.PoopsOnGround - _poops.Count);
+    }
 
     private void SpawnPoops(int count)
     {
@@ -259,6 +367,7 @@ public partial class PetWindow : Window
 
         PoopLayer.Children.Remove(poop);
         _poops.Remove(poop);
+        Say(CareText.For(CareAction.Clean, CareResult.Done, _rng));
         e.Handled = true;
     }
 
@@ -302,8 +411,16 @@ public partial class PetWindow : Window
 
         // 움직이지 않았으면 쓰다듬기(알이면 부화 클릭)다.
         var now = DateTimeOffset.Now;
-        if (_pet.Stage == LifeStage.Egg) _pet.RegisterEggClick(now);
-        else _pet.ApplyCare(CareAction.Pet, now);
+        if (_pet.Stage == LifeStage.Egg)
+        {
+            // 부화하면 StageChanged 가 대신 말하므로 여기서는 잠자코 있는다.
+            _pet.RegisterEggClick(now);
+        }
+        else
+        {
+            var result = _pet.ApplyCare(CareAction.Pet, now);
+            Say(CareText.For(CareAction.Pet, result, _rng));
+        }
 
         RefreshFace();
         RefreshDebug();
