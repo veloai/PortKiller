@@ -66,6 +66,10 @@ public static class Balance
     /// <summary>가만히 있다가 다음에 점프를 고를 확률.</summary>
     public const double JumpChance = 0.2;
 
+    // --- 뽀모도로 ---
+    public const double PomodoroFocusMinutes = 25.0;
+    public const double PomodoroBreakMinutes = 5.0;
+
     // --- 진화 조건 ---
     /// <summary>
     /// 키 입력 "횟수"가 아니라 "집중한 시간"을 쓴다.

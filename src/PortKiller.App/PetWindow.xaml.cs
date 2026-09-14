@@ -23,8 +23,10 @@ public partial class PetWindow : Window
     private readonly List<FrameworkElement> _poops = new();
 
     private Pet _pet = new();
+    private Notebook _notebook = new();
     private PetMotion _motion = null!;
     private TrayIcon? _tray;
+    private NotebookWindow? _notebookWindow;
     private DispatcherTimer? _gameLoop;
     private DateTimeOffset _lastTick = DateTimeOffset.Now;
     private DateTimeOffset _lastTooltipUpdate = DateTimeOffset.MinValue;
@@ -66,6 +68,19 @@ public partial class PetWindow : Window
         LoadPet();
         SetUpTray();
         StartGameLoop();
+        OpenNotebookIfRequested();
+    }
+
+    /// <summary>
+    /// 검사용 통로. `--open-notebook` 으로 켜면 수첩을 바로 연다.
+    ///
+    /// 수첩은 트레이 메뉴로만 열리는데, 윈도우 11 은 새 트레이 아이콘을 숨김 영역에 넣어서
+    /// 자동 검사가 그 메뉴에 닿지 못한다. 그래서 화면이 실제로 그려지는지 확인할 길을
+    /// 프로젝트 안에 하나 둔다. 인자를 안 주면 아무 일도 하지 않는다.
+    /// </summary>
+    private void OpenNotebookIfRequested()
+    {
+        if (Environment.GetCommandLineArgs().Contains("--open-notebook")) OpenNotebook();
     }
 
     // ---------- 트레이 ----------
@@ -80,8 +95,30 @@ public partial class PetWindow : Window
         _tray.StatsRequested += () => DebugPanel.Visibility =
             DebugPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
         _tray.AlwaysOnTopToggled += on => Topmost = on;
+        _tray.NotebookRequested += OpenNotebook;
         _tray.ResetRequested += ConfirmAndReset;
         _tray.QuitRequested += Close;
+    }
+
+    /// <summary>
+    /// 수첩 창은 하나만 띄운다. 트레이를 여러 번 눌러 창이 겹겹이 쌓이면
+    /// 어느 것이 진짜인지 알 수 없게 된다.
+    /// </summary>
+    private void OpenNotebook()
+    {
+        if (_notebookWindow is not null)
+        {
+            _notebookWindow.Activate();
+            return;
+        }
+
+        _notebookWindow = new NotebookWindow(_notebook) { Owner = null };
+        _notebookWindow.Closed += (_, _) =>
+        {
+            _notebookWindow = null;
+            _store.Save(BuildSave());
+        };
+        _notebookWindow.Show();
     }
 
     private void ConfirmAndReset()
@@ -98,7 +135,7 @@ public partial class PetWindow : Window
         _poops.Clear();
         _motion.PlaceOnGround(Width * 0.5 - PetBody.Width * 0.5, Bounds());
 
-        _store.Save(_pet.ToSave(DateTimeOffset.Now));
+        _store.Save(BuildSave());
         RefreshFace();
         Say(CareText.EggGreeting);
     }
@@ -122,6 +159,36 @@ public partial class PetWindow : Window
         return pet;
     }
 
+    /// <summary>수첩이 알리는 일을 펫이 말하게 잇는다.</summary>
+    private Notebook WireNotebook(Notebook book)
+    {
+        book.ReminderDue += r => Dispatcher.Invoke(() => Say(CareText.Reminder(r.Text)));
+
+        book.AllTodosDone += () => Dispatcher.Invoke(() =>
+        {
+            Say(CareText.TodoDone(Notebook.TodoSlots, Notebook.TodoSlots));
+            // 다 끝냈으면 같이 기뻐한다. 행복은 돌보기와 같은 경로로 올린다.
+            _pet.ApplyCare(CareAction.Pet, DateTimeOffset.Now);
+        });
+
+        book.PhaseChanged += phase => Dispatcher.Invoke(() =>
+        {
+            // 집중이 끝나 쉬는 구간으로 넘어갈 때와 시작할 때만 말한다.
+            // 그만두기로 끈 경우까지 말하면 잔소리가 된다.
+            if (phase == PomodoroPhase.Idle) return;
+            Say(CareText.Pomodoro(phase));
+        });
+
+        return book;
+    }
+
+    private SaveData BuildSave()
+    {
+        var data = _pet.ToSave(DateTimeOffset.Now);
+        data.Notebook = _notebook.ToSave();
+        return data;
+    }
+
     /// <summary>창을 화면 전체 크기로 편다. 펫은 이 투명 판 위를 돌아다닌다.</summary>
     private void CoverPrimaryScreen()
     {
@@ -139,6 +206,7 @@ public partial class PetWindow : Window
     {
         var data = _store.Load();
         _pet = Wire(Pet.FromSave(data));
+        _notebook = WireNotebook(Notebook.FromSave(data.Notebook));
 
         var away = DateTimeOffset.Now - data.LastSeenAt;
         _pet.CatchUpOffline(away, DateTimeOffset.Now);
@@ -162,6 +230,7 @@ public partial class PetWindow : Window
 
             _pet.Tick(delta, now);
             _pet.AddFocusTime(_activity.DrainFocused(), now);
+            _notebook.Tick(now);
 
             // 알일 때는 돌아다니지 않는다.
             if (_pet.Stage != LifeStage.Egg)
@@ -428,7 +497,8 @@ public partial class PetWindow : Window
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        _store.Save(_pet.ToSave(DateTimeOffset.Now));
+        _store.Save(BuildSave());
+        _notebookWindow?.Close();
         _gameLoop?.Stop();
         _activity.Dispose();
 

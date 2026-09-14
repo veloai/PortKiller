@@ -54,6 +54,20 @@ public static class CareText
             ? EggGreeting
             : GreetingLines[(rng ?? Random.Shared).Next(GreetingLines.Length)];
 
+    // ---------- 수첩 ----------
+
+    public static string Reminder(string what) => $"⏰ {what} 할 시간이야!";
+
+    public static string TodoDone(int done, int total)
+        => done >= total ? "🎉 오늘 할 일 전부 끝! 대단해!" : $"좋아! {done}/{total} 했다";
+
+    public static string Pomodoro(PomodoroPhase phase) => phase switch
+    {
+        PomodoroPhase.Focus => "집중 시작! 나도 조용히 있을게",
+        PomodoroPhase.Break => "25분 끝! 5분만 쉬자",
+        _ => "수고했어!",
+    };
+
     public static string Evolved(int tier)
         => tier >= 2 ? "✨✨ 최종 진화! ✨✨" : "✨ 진화했다! ✨";
 

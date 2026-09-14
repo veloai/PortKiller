@@ -33,6 +33,9 @@ public sealed class TrayIcon : IDisposable
     /// <summary>아이콘을 좌클릭했을 때. 상태 창을 보여 달라는 뜻이다.</summary>
     public event Action? StatsRequested;
 
+    /// <summary>수첩(할 일·리마인더·뽀모도로)을 열어 달라는 뜻.</summary>
+    public event Action? NotebookRequested;
+
     /// <summary>펫을 알부터 다시 키우겠다는 뜻. 되돌릴 수 없으므로 확인은 받는 쪽에서 한다.</summary>
     public event Action? ResetRequested;
 
@@ -66,6 +69,9 @@ public sealed class TrayIcon : IDisposable
         var statsItem = new ToolStripMenuItem("상태 보기");
         statsItem.Click += (_, _) => StatsRequested?.Invoke();
 
+        var notebookItem = new ToolStripMenuItem("📔 수첩 (할 일·리마인더·집중)");
+        notebookItem.Click += (_, _) => NotebookRequested?.Invoke();
+
         var resetItem = new ToolStripMenuItem("🥚 처음부터 다시 키우기");
         resetItem.Click += (_, _) => ResetRequested?.Invoke();
 
@@ -76,6 +82,8 @@ public sealed class TrayIcon : IDisposable
         _menu.Items.AddRange(new ToolStripItem[]
         {
             statsItem,
+            notebookItem,
+            new ToolStripSeparator(),
             _alwaysOnTopItem,
             _autostartItem,
             new ToolStripSeparator(),

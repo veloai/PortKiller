@@ -27,6 +27,8 @@ public sealed class SaveData
     public double FocusSeconds { get; set; }
     public int CareCount { get; set; }
     public List<string> ActiveDays { get; set; } = new();
+
+    public NotebookData? Notebook { get; set; }
 }
 
 public interface ISaveStore
