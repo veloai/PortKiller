@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>PortKillerPet</AssemblyName>
+    <RootNamespace>PortKiller.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PortKiller.Core\PortKiller.Core.csproj" />
+    <ProjectReference Include="..\PortKiller.Platform\PortKiller.Platform.csproj" />
+  </ItemGroup>
+</Project>

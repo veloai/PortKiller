@@ -1,0 +1,14 @@
+<Project>
+  <!-- 사내 배포용 공통 빌드 설정.
+       백신 오탐의 주 방아쇠인 트리밍/단일파일 뭉치기를 전 프로젝트에서 끈다. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <Company>Sonstar</Company>
+    <Product>PortKiller Pet</Product>
+  </PropertyGroup>
+</Project>

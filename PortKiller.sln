@@ -1,0 +1,46 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{11111111-1111-1111-1111-111111111111}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{22222222-2222-2222-2222-222222222222}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PortKiller.Core", "src\PortKiller.Core\PortKiller.Core.csproj", "{AAAAAAAA-0001-0001-0001-AAAAAAAAAAAA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PortKiller.Platform", "src\PortKiller.Platform\PortKiller.Platform.csproj", "{AAAAAAAA-0002-0002-0002-AAAAAAAAAAAA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PortKiller.App", "src\PortKiller.App\PortKiller.App.csproj", "{AAAAAAAA-0003-0003-0003-AAAAAAAAAAAA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PortKiller.Core.Tests", "tests\PortKiller.Core.Tests\PortKiller.Core.Tests.csproj", "{BBBBBBBB-0001-0001-0001-BBBBBBBBBBBB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AAAAAAAA-0001-0001-0001-AAAAAAAAAAAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AAAAAAAA-0001-0001-0001-AAAAAAAAAAAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AAAAAAAA-0001-0001-0001-AAAAAAAAAAAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AAAAAAAA-0001-0001-0001-AAAAAAAAAAAA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AAAAAAAA-0002-0002-0002-AAAAAAAAAAAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AAAAAAAA-0002-0002-0002-AAAAAAAAAAAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AAAAAAAA-0002-0002-0002-AAAAAAAAAAAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AAAAAAAA-0002-0002-0002-AAAAAAAAAAAA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AAAAAAAA-0003-0003-0003-AAAAAAAAAAAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AAAAAAAA-0003-0003-0003-AAAAAAAAAAAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AAAAAAAA-0003-0003-0003-AAAAAAAAAAAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AAAAAAAA-0003-0003-0003-AAAAAAAAAAAA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BBBBBBBB-0001-0001-0001-BBBBBBBBBBBB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BBBBBBBB-0001-0001-0001-BBBBBBBBBBBB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BBBBBBBB-0001-0001-0001-BBBBBBBBBBBB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BBBBBBBB-0001-0001-0001-BBBBBBBBBBBB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{AAAAAAAA-0001-0001-0001-AAAAAAAAAAAA} = {11111111-1111-1111-1111-111111111111}
+		{AAAAAAAA-0002-0002-0002-AAAAAAAAAAAA} = {11111111-1111-1111-1111-111111111111}
+		{AAAAAAAA-0003-0003-0003-AAAAAAAAAAAA} = {11111111-1111-1111-1111-111111111111}
+		{BBBBBBBB-0001-0001-0001-BBBBBBBBBBBB} = {22222222-2222-2222-2222-222222222222}
+	EndGlobalSection
+EndGlobal

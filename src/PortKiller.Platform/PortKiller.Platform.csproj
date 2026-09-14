@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 윈도우 전용 계층. OS 를 건드리는 코드는 전부 여기에만 모은다.
+       나중에 다른 OS 로 가면 이 프로젝트만 새로 쓰면 된다. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PortKiller.Core\PortKiller.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 두뇌 계층. 윈도우 전용 코드가 한 줄도 없어야 한다.
+       나중에 맥/폰으로 갈 때 이 프로젝트만 그대로 들고 간다. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+  </PropertyGroup>
+</Project>
