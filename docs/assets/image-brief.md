@@ -303,3 +303,26 @@ powershell -File scripts/matte-sprite.ps1 -In 받은그림.jpg -Out sprite.png
 
 기준 그림 후보 3장이 `assets/sprites/_candidates/` 에 있다 (`_compare.png` 로 나란히 비교).
 **하나를 고르면** 그것을 참조로 붙여 나머지 7포즈 + 단계별 벌을 뽑는다.
+
+### 덧 — "제미나이는 투명 배경 되지 않나" 에 대한 확인 (2026-09-14)
+
+**안 된다.** 주문 문구를 바꿔 두 번 더 뽑아 봤다("실제 알파 채널로 내라 · 체크무늬를
+그리지 마라 · 다이컷 스티커다"). 결과는 똑같이 **체크무늬가 칠해진 JPEG** 였고,
+이번에는 스티커 흰 테두리까지 덤으로 그려 넣었다.
+
+원인은 문구가 아니라 모델이다. 구글 이미지 모델 계열(나노바나나 = Gemini 2.5 Flash Image,
+나노바나나 프로 = Gemini 3 Pro Image)은 **RGB 3채널만 낸다 — 알파 채널이 없다.**
+"투명 배경"을 주문하면 흰 판, 검은 판, 아니면 투명을 **뜻하는 그림**(체크무늬)이 나온다.
+`imageConfig` 에도 형식을 정하는 칸이 없다(우리 어댑터가 쓰는 것은 `aspectRatio` 뿐).
+
+사람들이 "제미나이는 투명 배경 된다"고 말하는 것은 **앱·외부 서비스가 뒤에서 배경을
+벗겨 주는 것**이지 API 가 알파를 내주는 것이 아니다. 그래서 벗기는 단계는 우리가 갖는다.
+
+**나중에 품질이 아쉬우면 쓸 더 좋은 방법**: 같은 주문을 **흰 배경 한 장·검은 배경 한 장**으로
+뽑아 두 장을 견주면 알파를 수식으로 정확히 복원할 수 있다(반투명 경계까지). 모델이 같은
+그림을 꽤 일관되게 다시 그려 주기 때문에 성립한다. 지금은 외곽선이 두꺼워
+`matte-sprite.ps1` 의 번짐 방식으로 충분해서 쓰지 않았다. 장당 비용이 두 배가 된다.
+
+출처: [Nano Banana PNG Fix](https://transparify.app/blog/gemini-transparent-background) ·
+[Why Google Gemini Fails at Transparent Backgrounds](https://discover.oreateai.com/discover/why-google-gemini-fails-at-transparent-backgrounds-and-how-to-fix-it) ·
+[Gemini API forum — Unable to create Transparent PNGs](https://discuss.ai.google.dev/t/unable-to-create-transparent-pngs/92868)
