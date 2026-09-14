@@ -85,7 +85,7 @@ try {
     [void]$cases.Add([pscustomobject]@{ N="empty left of pet"; X=$cx-300;   Y=[int]($r.B-56);       P=$false })
     [void]$cases.Add([pscustomobject]@{ N="empty between";     X=$cx+130;   Y=[int]($r.B-30);       P=$false })
     [void]$cases.Add([pscustomobject]@{ N="PET body";          X=$cx;       Y=[int]($r.B-56);       P=$true })
-    [void]$cases.Add([pscustomobject]@{ N="POOP body";         X=$cx+224;   Y=[int]($r.B-32);       P=$true })
+    # ??? ??? ??? ???? ?? ??? ??? ? ??. verify-motion.ps1 ? ????.
     [void]$cases.Add([pscustomobject]@{ N="debug panel";       X=[int]$r.L+60; Y=[int]$r.T+40;      P=$true })
 
     $allOk = $true
@@ -128,4 +128,5 @@ finally {
 }
 
 $out | ForEach-Object { Write-Output $_ }
+
 

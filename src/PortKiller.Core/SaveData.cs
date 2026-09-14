@@ -19,6 +19,8 @@ public sealed class SaveData
     public double Cleanliness { get; set; } = 100;
 
     public int HatchClicks { get; set; }
+    public int PoopsOnGround { get; set; }
+    public DateTimeOffset? NextPoopAt { get; set; }
     public bool IsSick { get; set; }
     public bool IsSulking { get; set; }
 

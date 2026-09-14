@@ -39,6 +39,33 @@ public static class Balance
     /// <summary>아무리 오래 꺼놔도 8시간치까지만 깎는다. 죽지 않게 하는 장치.</summary>
     public const double OfflineCapHours = 8.0;
 
+    // --- 응아 ---
+    /// <summary>먹은 뒤 소화에 걸리는 시간(분). 이 범위에서 무작위로 정해진다.</summary>
+    public const double DigestMinutesMin = 90.0;
+    public const double DigestMinutesMax = 180.0;
+    /// <summary>아무것도 안 먹어도 이 간격(분)으로는 눈다.</summary>
+    public const double PoopIntervalMinutesMin = 180.0;
+    public const double PoopIntervalMinutesMax = 300.0;
+    /// <summary>응아 하나가 깎는 청결도.</summary>
+    public const double PoopDirtiness = 12.0;
+    /// <summary>꺼둔 사이에 쌓이는 응아 최대 개수. 돌아왔을 때 화면이 뒤덮이지 않게.</summary>
+    public const int MaxOfflinePoops = 3;
+    /// <summary>바닥에 동시에 존재할 수 있는 최대 개수.</summary>
+    public const int MaxPoopsOnGround = 6;
+
+    // --- 움직임 (초당 픽셀) ---
+    public const double WalkSpeed = 34.0;
+    public const double Gravity = 900.0;
+    public const double JumpVelocity = -420.0;
+    /// <summary>가만히 있는 시간(초) 범위.</summary>
+    public const double IdleSecondsMin = 2.0;
+    public const double IdleSecondsMax = 6.0;
+    /// <summary>한 번 걷는 시간(초) 범위.</summary>
+    public const double WalkSecondsMin = 1.5;
+    public const double WalkSecondsMax = 4.0;
+    /// <summary>가만히 있다가 다음에 점프를 고를 확률.</summary>
+    public const double JumpChance = 0.2;
+
     // --- 진화 조건 ---
     /// <summary>
     /// 키 입력 "횟수"가 아니라 "집중한 시간"을 쓴다.

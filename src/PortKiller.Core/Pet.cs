@@ -7,12 +7,19 @@ namespace PortKiller.Core;
 public sealed class Pet
 {
     private readonly HashSet<string> _activeDays = new();
+    private readonly Random _rng;
 
     /// <param name="createdAt">
     /// 알이 생긴 시각. 테스트가 시계에 흔들리지 않도록 바깥에서 넣을 수 있게 열어둔다.
     /// </param>
-    public Pet(DateTimeOffset? createdAt = null)
-        => EggCreatedAt = createdAt ?? DateTimeOffset.Now;
+    /// <param name="rng">
+    /// 응아 간격처럼 무작위가 섞이는 곳에 쓴다. 테스트에서는 씨앗을 고정해 넣는다.
+    /// </param>
+    public Pet(DateTimeOffset? createdAt = null, Random? rng = null)
+    {
+        EggCreatedAt = createdAt ?? DateTimeOffset.Now;
+        _rng = rng ?? Random.Shared;
+    }
 
     public PetStats Stats { get; } = new();
     public LifeStage Stage { get; private set; } = LifeStage.Egg;
@@ -32,9 +39,18 @@ public sealed class Pet
     public int CareCount { get; private set; }
     public int DistinctActiveDays => _activeDays.Count;
 
+    /// <summary>바닥에 있는 응아 개수. 많을수록 청결도가 빨리 떨어진다.</summary>
+    public int PoopsOnGround { get; private set; }
+
+    /// <summary>다음에 응아를 눌 시각. 먹이면 앞당겨진다.</summary>
+    public DateTimeOffset? NextPoopAt { get; private set; }
+
     public event Action<LifeStage>? StageChanged;
     public event Action<int>? Evolved;
     public event Action<bool>? SickChanged;
+
+    /// <summary>응아를 눌 때마다 몇 개 늘었는지 알린다. 화면은 이때 그림을 하나 놓는다.</summary>
+    public event Action<int>? Pooped;
 
     // ---------- 시간 진행 ----------
 
@@ -76,10 +92,62 @@ public sealed class Pet
         else
             Stats.Energy -= Balance.EnergyDecayPerHour * hours;
 
+        ApplyPoop(now, offline, hours);
         ApplyHealth(hours);
         RefreshConditions();
         TryGrow(now);
     }
+
+    // ---------- 응아 ----------
+
+    /// <summary>
+    /// 눌 때가 됐으면 눈다.
+    /// 꺼둔 사이의 시간을 한 번에 따라잡을 때는 여러 개가 한꺼번에 나오는데,
+    /// 화면이 뒤덮이지 않도록 개수를 막아둔다.
+    /// </summary>
+    /// <param name="hours">
+    /// 이번에 흘러간 시간. 더러워지는 양은 반드시 여기에 비례해야 한다.
+    /// 호출 횟수에 비례시키면 화면이 초당 60번 도는 순간 청결도가 몇 초 만에 0이 된다.
+    /// </param>
+    private void ApplyPoop(DateTimeOffset now, bool offline, double hours)
+    {
+        NextPoopAt ??= now.AddMinutes(
+            Pick(Balance.PoopIntervalMinutesMin, Balance.PoopIntervalMinutesMax));
+
+        var maxThisRound = offline ? Balance.MaxOfflinePoops : 1;
+        var made = 0;
+
+        while (now >= NextPoopAt && made < maxThisRound)
+        {
+            if (PoopsOnGround < Balance.MaxPoopsOnGround)
+            {
+                PoopsOnGround++;
+                made++;
+            }
+            NextPoopAt = NextPoopAt.Value.AddMinutes(
+                Pick(Balance.PoopIntervalMinutesMin, Balance.PoopIntervalMinutesMax));
+
+            // 바닥이 꽉 찼으면 시각만 미루고 개수는 늘리지 않는다. 무한 반복 방지.
+            if (PoopsOnGround >= Balance.MaxPoopsOnGround) break;
+        }
+
+        // 바닥에 쌓인 만큼 시간당 더러워진다.
+        if (PoopsOnGround > 0)
+            Stats.Cleanliness -= Balance.PoopDirtiness * PoopsOnGround * hours;
+
+        if (made > 0) Pooped?.Invoke(made);
+    }
+
+    /// <summary>응아 하나를 치운다. 치울 게 없으면 false.</summary>
+    public bool CleanOnePoop()
+    {
+        if (PoopsOnGround <= 0) return false;
+        PoopsOnGround--;
+        Stats.Cleanliness += Balance.PoopDirtiness;
+        return true;
+    }
+
+    private double Pick(double min, double max) => min + _rng.NextDouble() * (max - min);
 
     private void ApplyHealth(double hours)
     {
@@ -154,10 +222,12 @@ public sealed class Pet
         {
             case CareAction.Feed:
                 Stats.Hunger += 30;
+                ScheduleDigestion(now);
                 break;
             case CareAction.Snack:
                 Stats.Hunger += 10;
                 Stats.Happiness += 5;
+                ScheduleDigestion(now);
                 break;
             case CareAction.Play:
                 if (IsSick) return false;
@@ -183,6 +253,16 @@ public sealed class Pet
         NoteActiveDay(now);
         RefreshConditions();
         return true;
+    }
+
+    /// <summary>
+    /// 먹으면 소화 시간 뒤에 눈다. 원래 예정보다 늦어지지는 않게 이른 쪽을 택한다.
+    /// (계속 먹이는데 응아가 안 나오면 먹인 보람이 없다)
+    /// </summary>
+    private void ScheduleDigestion(DateTimeOffset now)
+    {
+        var digested = now.AddMinutes(Pick(Balance.DigestMinutesMin, Balance.DigestMinutesMax));
+        NextPoopAt = NextPoopAt is null || digested < NextPoopAt ? digested : NextPoopAt;
     }
 
     // ---------- 활동 기록 (진화 조건) ----------
@@ -237,6 +317,8 @@ public sealed class Pet
         Health = Stats.Health,
         Cleanliness = Stats.Cleanliness,
         HatchClicks = HatchClicks,
+        PoopsOnGround = PoopsOnGround,
+        NextPoopAt = NextPoopAt,
         IsSick = IsSick,
         IsSulking = IsSulking,
         FocusSeconds = FocusSeconds,
@@ -253,6 +335,8 @@ public sealed class Pet
             EvolutionTier = d.EvolutionTier,
             BornAt = d.BornAt,
             HatchClicks = d.HatchClicks,
+            PoopsOnGround = d.PoopsOnGround,
+            NextPoopAt = d.NextPoopAt,
             IsSick = d.IsSick,
             IsSulking = d.IsSulking,
             FocusSeconds = d.FocusSeconds,

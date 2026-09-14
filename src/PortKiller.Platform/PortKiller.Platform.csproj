@@ -3,6 +3,8 @@
        나중에 다른 OS 로 가면 이 프로젝트만 새로 쓰면 된다. -->
   <PropertyGroup>
     <TargetFramework>net9.0-windows</TargetFramework>
+    <!-- 트레이 아이콘(NotifyIcon)용. 외부 NuGet 없이 기본 제공 기능만 쓰려고 켠다. -->
+    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>

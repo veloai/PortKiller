@@ -10,18 +10,23 @@
         ResizeMode="NoResize"
         WindowStartupLocation="Manual">
 
-    <!-- 이 Canvas 가 화면 전체를 덮는다. 보이는 것은 그 위에 올린 조각들뿐이고,
-         나머지 영역은 ClickThroughController 가 클릭을 통과시킨다. -->
+    <!-- 화면 전체를 덮는 투명 판. 그림이 그려진 자리만 클릭을 받고
+         나머지는 윈도우가 알아서 뒤 창으로 넘긴다. (docs/verification/clickthrough.md) -->
     <Canvas x:Name="Stage">
 
-        <!-- 확인용 조각 1: 펫 자리 -->
+        <!-- 응아는 PoopLayer 에 코드로 하나씩 추가된다. 펫보다 뒤에 그려지도록 먼저 둔다. -->
+        <Canvas x:Name="PoopLayer" />
+
         <Border x:Name="PetBody"
                 Width="96" Height="96"
                 CornerRadius="48"
                 Background="#FF7BC96F"
                 BorderBrush="#FF3F7A38"
                 BorderThickness="3"
-                MouseLeftButtonDown="PetBody_MouseLeftButtonDown">
+                Cursor="Hand"
+                MouseLeftButtonDown="PetBody_MouseLeftButtonDown"
+                MouseMove="PetBody_MouseMove"
+                MouseLeftButtonUp="PetBody_MouseLeftButtonUp">
             <TextBlock x:Name="PetFace"
                        Text="🥚"
                        FontSize="40"
@@ -29,15 +34,6 @@
                        VerticalAlignment="Center" />
         </Border>
 
-        <!-- 확인용 조각 2: 떨어져 있는 두 번째 영역(응아 역할).
-             이 둘 사이 빈 공간에서 뒤 창이 클릭되면 클릭 통과가 성공한 것이다. -->
-        <Border x:Name="Poop"
-                Width="48" Height="48"
-                CornerRadius="24"
-                Background="#FF8D6E4A"
-                MouseLeftButtonDown="Poop_MouseLeftButtonDown" />
-
-        <!-- 상태 표시. 지금 클릭을 받는 중인지 눈으로 확인하는 용도. -->
         <Border x:Name="DebugPanel"
                 Background="#CC1E1E1E"
                 CornerRadius="6"
