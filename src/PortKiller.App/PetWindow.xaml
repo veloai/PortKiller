@@ -52,6 +52,13 @@
                     <MenuItem Header="🧹  청소"   Tag="Clean"    Click="CareMenu_Click" />
                     <MenuItem Header="💊  약"     Tag="Medicine" Click="CareMenu_Click" />
                     <MenuItem Header="😴  재우기" Tag="Sleep"    Click="CareMenu_Click" />
+                    <Separator />
+                    <!-- 트레이 메뉴는 윈도우 11 숨김 영역에 들어가서 자동 검사가 못 닿는다.
+                         펫 우클릭 메뉴는 닿으므로 같은 기능을 여기에도 둔다. -->
+                    <MenuItem x:Name="AskMenuItem"
+                              AutomationProperties.AutomationId="AskMenuItem"
+                              Header="💬  물어보기"
+                              Click="AskMenu_Click" />
                 </ContextMenu>
             </Border.ContextMenu>
         </Border>

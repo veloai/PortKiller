@@ -17,7 +17,7 @@ namespace PortKiller.Platform;
 ///     보안 검토는 "외부 함수 호출 목록"을 보고 판단하므로, 그 목록이 짧을수록 통과가 쉽다.
 ///   - 입력을 읽는 함수(SetWindowsHookEx, GetAsyncKeyState, GetCursorPos)를 부르지 않는다.
 ///     트레이 메뉴는 윈도우가 알아서 띄워 주므로 커서 좌표를 알 필요가 없다.
-///   - 통신 코드가 없다.
+///   - 이 파일에는 통신 코드가 없다. 메뉴에서 AI 창을 열어 달라고 이벤트만 올린다.
 /// </summary>
 public sealed class TrayIcon : IDisposable
 {
@@ -38,6 +38,12 @@ public sealed class TrayIcon : IDisposable
 
     /// <summary>수첩(할 일·리마인더·뽀모도로)을 열어 달라는 뜻.</summary>
     public event Action? NotebookRequested;
+
+    /// <summary>AI 에게 물어보는 창을 열어 달라는 뜻.</summary>
+    public event Action? AskRequested;
+
+    /// <summary>AI 열쇠·모델 설정 창을 열어 달라는 뜻.</summary>
+    public event Action? AiSettingsRequested;
 
     /// <summary>펫을 알부터 다시 키우겠다는 뜻. 되돌릴 수 없으므로 확인은 받는 쪽에서 한다.</summary>
     public event Action? ResetRequested;
@@ -88,6 +94,12 @@ public sealed class TrayIcon : IDisposable
         var notebookItem = new ToolStripMenuItem("📔 수첩 (할 일·리마인더·집중)");
         notebookItem.Click += (_, _) => NotebookRequested?.Invoke();
 
+        var askItem = new ToolStripMenuItem("💬 물어보기");
+        askItem.Click += (_, _) => AskRequested?.Invoke();
+
+        var aiSettingsItem = new ToolStripMenuItem("🔑 AI 설정 (열쇠·모델)");
+        aiSettingsItem.Click += (_, _) => AiSettingsRequested?.Invoke();
+
         var resetItem = new ToolStripMenuItem("🥚 처음부터 다시 키우기");
         resetItem.Click += (_, _) => ResetRequested?.Invoke();
 
@@ -99,6 +111,8 @@ public sealed class TrayIcon : IDisposable
         {
             statsItem,
             notebookItem,
+            askItem,
+            aiSettingsItem,
             new ToolStripSeparator(),
             _hideItem,
             _alwaysOnTopItem,

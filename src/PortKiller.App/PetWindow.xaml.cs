@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -36,11 +37,23 @@ public partial class PetWindow : Window
     private readonly List<FrameworkElement> _poops = new();
     private readonly SpriteLibrary _sprites = new();
 
+    private readonly ApiKeyStore _keys = new();
+    private readonly AiSettingsStore _aiStore = new();
+
+    /// <summary>
+    /// 앱 전체가 하나만 쓴다. 물어볼 때마다 새로 만들면 연결이 쌓여 소켓이 마른다.
+    /// 시간 제한은 요청마다 취소 토큰으로 준다 - 설정에서 바꿀 수 있어야 하기 때문이다.
+    /// </summary>
+    private readonly HttpClient _http = new() { Timeout = Timeout.InfiniteTimeSpan };
+
     private Pet _pet = new();
     private Notebook _notebook = new();
+    private AiSettings _ai = new();
     private PetMotion _motion = null!;
     private TrayIcon? _tray;
     private NotebookWindow? _notebookWindow;
+    private AskWindow? _askWindow;
+    private AiSettingsWindow? _aiSettingsWindow;
     private DispatcherTimer? _gameLoop;
     private DateTimeOffset _lastTick = DateTimeOffset.Now;
     private DateTimeOffset _lastTooltipUpdate = DateTimeOffset.MinValue;
@@ -84,6 +97,8 @@ public partial class PetWindow : Window
         Canvas.SetLeft(DebugPanel, 20);
         Canvas.SetTop(DebugPanel, 20);
 
+        _ai = _aiStore.Load();
+
         LoadPet();
         SetUpTray();
         StartGameLoop();
@@ -99,7 +114,10 @@ public partial class PetWindow : Window
     /// </summary>
     private void OpenNotebookIfRequested()
     {
-        if (Environment.GetCommandLineArgs().Contains("--open-notebook")) OpenNotebook();
+        var args = Environment.GetCommandLineArgs();
+        if (args.Contains("--open-notebook")) OpenNotebook();
+        if (args.Contains("--open-ask")) OpenAsk();
+        if (args.Contains("--open-ai-settings")) OpenAiSettings();
     }
 
     // ---------- 트레이 ----------
@@ -123,8 +141,76 @@ public partial class PetWindow : Window
         };
 
         _tray.NotebookRequested += OpenNotebook;
+        _tray.AskRequested += OpenAsk;
+        _tray.AiSettingsRequested += OpenAiSettings;
         _tray.ResetRequested += ConfirmAndReset;
         _tray.QuitRequested += Close;
+    }
+
+    /// <summary>
+    /// 지금 설정에 맞는 AI 클라이언트. 물어볼 때마다 새로 고른다 -
+    /// 설정 창에서 곳을 바꾸면 창을 다시 열지 않아도 바로 반영돼야 한다.
+    /// </summary>
+    private IAiClient CurrentAiClient()
+    {
+        // 검사용 통로. --stub-ai 로 켜면 아무 데도 보내지 않고 정해진 답을 돌려준다.
+        //
+        // 주소를 환경변수로 바꿔치기하는 방식은 쓰지 않았다. 그러면 배포본에
+        // "아무 서버로나 보낼 수 있는 구멍"이 남아서, 보안 검토에서 바로 걸린다.
+        // 이 가짜는 통신을 아예 하지 않으므로 어디로도 나갈 수 없다.
+        // 인자를 안 주면 만들어지지도 않는다.
+        if (Environment.GetCommandLineArgs().Contains("--stub-ai")) return new StubAiClient();
+
+        return _ai.Provider == AiProvider.OpenAi
+            ? new OpenAiChatClient(_http, () => _keys.Get(AiProvider.OpenAi), _ai)
+            : new GeminiChatClient(_http, () => _keys.Get(AiProvider.Gemini), _ai);
+    }
+
+    /// <summary>검사에서만 쓰는 가짜. 네트워크를 만지지 않는다.</summary>
+    private sealed class StubAiClient : IAiClient
+    {
+        public AiProvider Provider => AiProvider.Gemini;
+
+        public Task<string> AskAsync(string prompt, CancellationToken cancellationToken = default)
+            => Task.FromResult($"STUB ANSWER 42 (물어본 말: {prompt})");
+    }
+
+    /// <summary>
+    /// 물어보기 창. 하나만 띄운다.
+    ///
+    /// 답이 오면 펫이 짧게 한마디 한다 - 창을 다른 창 뒤로 보내 놔도 "답이 왔다"를 알 수 있게.
+    /// 답 전체를 말풍선에 넣지는 않는다. 화면을 덮어 버린다.
+    /// </summary>
+    private void OpenAsk()
+    {
+        if (_askWindow is not null)
+        {
+            _askWindow.Activate();
+            return;
+        }
+
+        _askWindow = new AskWindow(CurrentAiClient, _ai, () => _keys.Has(_ai.Provider));
+        _askWindow.Answered += _ =>
+        {
+            Say(CareText.AiAnswered(_rng));
+            React(PetPose.Happy);
+        };
+        _askWindow.Closed += (_, _) => _askWindow = null;
+        _askWindow.Show();
+    }
+
+    private void OpenAiSettings()
+    {
+        if (_aiSettingsWindow is not null)
+        {
+            _aiSettingsWindow.Activate();
+            return;
+        }
+
+        _aiSettingsWindow = new AiSettingsWindow(_ai, _keys, _aiStore);
+        _aiSettingsWindow.Saved += () => _askWindow?.RefreshProviderLabel();
+        _aiSettingsWindow.Closed += (_, _) => _aiSettingsWindow = null;
+        _aiSettingsWindow.Show();
     }
 
     /// <summary>
@@ -507,6 +593,8 @@ public partial class PetWindow : Window
             };
         }
     }
+
+    private void AskMenu_Click(object sender, RoutedEventArgs e) => OpenAsk();
 
     private void CareMenu_Click(object sender, RoutedEventArgs e)
     {

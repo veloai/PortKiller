@@ -54,6 +54,24 @@ public static class CareText
             ? EggGreeting
             : GreetingLines[(rng ?? Random.Shared).Next(GreetingLines.Length)];
 
+    // ---------- AI ----------
+
+    /// <summary>
+    /// 답이 도착했을 때 펫이 하는 한마디. <b>답 내용은 넣지 않는다</b> -
+    /// 말풍선은 몇 글자짜리라 AI 답을 담으면 화면을 덮고, 지나가던 사람도 읽게 된다.
+    /// 여기서는 "왔다"만 알리고 내용은 물어보기 창에 둔다.
+    /// </summary>
+    private static readonly string[] AiAnsweredLines =
+    {
+        "답 왔어! 창 봐봐",
+        "알아왔어~",
+        "다 찾아봤어!",
+        "이거 맞나 봐봐",
+    };
+
+    public static string AiAnswered(Random? rng = null)
+        => AiAnsweredLines[(rng ?? Random.Shared).Next(AiAnsweredLines.Length)];
+
     // ---------- 수첩 ----------
 
     public static string Reminder(string what) => $"⏰ {what} 할 시간이야!";
