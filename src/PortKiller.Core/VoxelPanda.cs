@@ -45,11 +45,34 @@ public static class VoxelPanda
     public const float MinX = -15f, MaxX = 11.3f, MaxY = 15.5f;
 
     /// <summary>종별 색. 낮 종은 붉은 갈색, 저녁 종은 더 어둡고 짙다.</summary>
-    public sealed record Palette(string Rust, string Ring, string Cream, string Dark, string Tip);
+    public sealed record Palette(string Rust, string Ring, string Cream, string Dark, string Tip, string Leg, string Toe);
 
     public static Palette PaletteFor(string speciesId) => speciesId == "evening"
-        ? new Palette("#A9452F", "#6E2A22", "#E9D6C6", "#1E1416", "#2C171A")
-        : new Palette("#C65A2A", "#8E3A1B", "#F4E6D0", "#2A1A16", "#3A1F17");
+        ? new Palette("#A9452F", "#6E2A22", "#E9D6C6", "#1E1416", "#2C171A", "#3C2226", "#4A2E32")
+        : new Palette("#C65A2A", "#8E3A1B", "#F4E6D0", "#2A1A16", "#3A1F17", "#4A2A1E", "#5C3A2C");
+
+    /// <summary>
+    /// 다리 하나: 다리(위) + 발(아래, 앞으로 뻗음) + 발가락 셋. 발끝이 뭉개지지 않게 세 덩어리로 나눈다.
+    /// </summary>
+    private static IEnumerable<VoxelBox> Leg(string part, Palette c, float x0, float x1, float z0, float z1, float forward)
+    {
+        // 발은 다리보다 앞쪽으로 0.7 더 나오고 옆으로 0.1 넓다.
+        var fx0 = forward > 0 ? x0 - 0.2f : x0;
+        var fx1 = forward > 0 ? x1 + 0.7f : x1;
+        var fz0 = z0 - 0.1f;
+        var fz1 = z1 + 0.1f;
+
+        yield return new(part, c.Leg, x0, 1.4f, z0, x1, 3.4f, z1);
+        yield return new(part, c.Dark, fx0, 0f, fz0, fx1, 1.4f, fz1);
+
+        const float gap = 0.1f;
+        var toe = (fz1 - fz0 - 2 * gap) / 3f;
+        for (var i = 0; i < 3; i++)
+        {
+            var tz0 = fz0 + i * (toe + gap);
+            yield return new(part, c.Toe, fx1, 0f, tz0, fx1 + 0.6f, 0.9f, tz0 + toe);
+        }
+    }
 
     public static IReadOnlyList<VoxelBox> Boxes(string speciesId)
     {
@@ -85,11 +108,8 @@ public static class VoxelPanda
             new(EyesClosed, eye, 9f, 10.6f, 1.8f, 9.4f, 11f, 3f),
             new(EyesClosed, eye, 9f, 10.6f, -3f, 9.4f, 11f, -1.8f),
 
-            // 다리(검은색): 앞 둘, 뒤 둘
-            new(LegFL, c.Dark, 1.5f, 0f, 0.8f, 3.8f, 3.4f, 2.8f),
-            new(LegFR, c.Dark, 1.5f, 0f, -2.8f, 3.8f, 3.4f, -0.8f),
-            new(LegBL, c.Dark, -3.8f, 0f, 0.8f, -1.5f, 3.4f, 2.8f),
-            new(LegBR, c.Dark, -3.8f, 0f, -2.8f, -1.5f, 3.4f, -0.8f),
+            // 다리: 위쪽은 짙은 갈색, 발은 검고 앞으로 뻗으며, 발가락 셋이 톡 튀어나온다.
+            // (예전엔 검은 통짜라 발끝이 뭉개져 보였다)
 
             // 안경(브리핑 소품): 검은 테 둘 + 코다리 + 다리
             new(Glasses, frame, 9.6f, 11.7f, 1.3f, 10f, 12.05f, 3.5f),
@@ -115,6 +135,15 @@ public static class VoxelPanda
             new(Tail, c.Ring, -13.6f, 7.6f, -1.8f, -11.8f, 11f, 1.8f),
             new(Tail, c.Tip, -15f, 8.8f, -1.5f, -13.6f, 12f, 1.5f),
         };
+
+        foreach (var leg in new[]
+        {
+            Leg(VoxelPanda.LegFL, c, 1.6f, 3.7f, 0.8f, 2.8f, forward: 1f),
+            Leg(VoxelPanda.LegFR, c, 1.6f, 3.7f, -2.8f, -0.8f, forward: 1f),
+            Leg(VoxelPanda.LegBL, c, -3.7f, -1.6f, 0.8f, 2.8f, forward: 1f),
+            Leg(VoxelPanda.LegBR, c, -3.7f, -1.6f, -2.8f, -0.8f, forward: 1f),
+        })
+            list.AddRange(leg);
 
         return list;
     }

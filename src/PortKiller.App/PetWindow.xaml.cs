@@ -710,22 +710,25 @@ public partial class PetWindow : Window
         Canvas.SetTop(DebugPanel, Math.Max(0, _motion.Y + PetBody.Height - size.Height));
     }
 
+    /// <summary>지시봉이 가장 위(카드 맨 위)를 가리킬 때와 가장 아래를 가리킬 때의 각도(도). 몸이 보는 쪽이 0°다.</summary>
+    private const double PointTopAngle = 78, PointBottomAngle = -32;
+
     /// <summary>
-    /// 마우스가 카드 위를 지나갈 때만 온다(내 창 안의 이벤트). 어깨에서 마우스 쪽으로 지시봉을 향한다.
-    /// 화면 전체 커서 위치를 읽는 것이 아니다 - 카드 밖에서는 이 함수가 불리지 않는다.
+    /// 마우스가 카드 위를 지나갈 때만 온다(내 창 안의 이벤트). 카드 안에서 마우스가 있는 높이에 맞춰
+    /// 지시봉을 크게 들었다 내린다 - 맨 위면 하늘을 찌르고 맨 아래면 바닥을 가리킨다.
+    /// 화면 전체 커서 위치를 읽는 것이 아니다. 카드 밖에서는 이 함수가 불리지 않는다.
+    ///
+    /// <para>어깨에서 마우스까지의 실제 각도를 쓰지 않은 이유: 카드가 멀리 서 있어서 그 각도는 좁은 범위
+    /// (10~40°)에서만 움직여, 지시봉이 거의 안 움직이는 것처럼 보였다. 카드 안의 높이를 각도로 옮기면
+    /// 마우스를 조금만 움직여도 지시봉이 크게 따라온다.</para>
     /// </summary>
     private void BriefingCard_MouseMove(object sender, MouseEventArgs e)
     {
-        var p = e.GetPosition(Stage);
-        var shoulderX = _motion.X + PetBody.Width / 2;
-        var shoulderY = _motion.Y + PetBody.Height - 32;   // 일어선 어깨의 대략의 높이
+        var onCard = e.GetPosition(DebugPanel);
+        var t = DebugPanel.ActualHeight > 0 ? Math.Clamp(onCard.Y / DebugPanel.ActualHeight, 0, 1) : 0.5;
 
-        var dx = p.X - shoulderX;
-        if (_motion.FacingLeft) dx = -dx;   // 왼쪽을 볼 때는 몸이 거울처럼 뒤집혀 있다
-        var angle = Math.Atan2(shoulderY - p.Y, dx) * 180 / Math.PI;
-
-        Panda.PointAt(Math.Clamp(angle, -60, 110));
-        DebugPanel.Pointer(e.GetPosition(DebugPanel));
+        Panda.PointAt(PointTopAngle + (PointBottomAngle - PointTopAngle) * t);
+        DebugPanel.Pointer(onCard);
     }
 
     private void CareMenu_Click(object sender, RoutedEventArgs e)

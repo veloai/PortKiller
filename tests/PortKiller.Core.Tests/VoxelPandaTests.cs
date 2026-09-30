@@ -59,6 +59,20 @@ public class VoxelPandaTests
     }
 
     [Fact]
+    public void Each_leg_has_upper_leg_foot_and_three_toes()
+    {
+        var boxes = VoxelPanda.Boxes("day");
+
+        foreach (var leg in new[] { VoxelPanda.LegFL, VoxelPanda.LegFR, VoxelPanda.LegBL, VoxelPanda.LegBR })
+        {
+            var parts = boxes.Where(b => b.Part == leg).ToList();
+            Assert.Equal(5, parts.Count);                            // 다리 1 + 발 1 + 발가락 3
+            Assert.Equal(3, parts.Count(b => b.Y1 <= 0.91f && b.Y0 == 0f)); // 발가락은 낮고 땅에 닿는다
+            Assert.Equal(0f, parts.Min(b => b.Y0));
+        }
+    }
+
+    [Fact]
     public void Both_eye_states_exist_and_species_differ_in_color()
     {
         var day = VoxelPanda.Boxes("day");
