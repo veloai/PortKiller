@@ -22,7 +22,9 @@ public class VoxelPandaTests
     {
         var boxes = VoxelPanda.Boxes("day");
 
-        Assert.Equal(0f, boxes.Min(b => b.Y0));
+        // 소품 중 지시봉은 땅 밑까지 뻗으므로 빼고 잰다.
+        var body = boxes.Where(b => b.Part is not (VoxelPanda.Glasses or VoxelPanda.Pointer)).ToList();
+        Assert.Equal(0f, body.Min(b => b.Y0));
         Assert.All(new[] { VoxelPanda.LegFL, VoxelPanda.LegFR, VoxelPanda.LegBL, VoxelPanda.LegBR },
             leg => Assert.Equal(0f, boxes.Where(b => b.Part == leg).Min(b => b.Y0)));
     }
@@ -44,6 +46,16 @@ public class VoxelPandaTests
 
         foreach (var part in VoxelPanda.Pivots.Keys)
             Assert.Contains(boxes, b => b.Part == part);
+    }
+
+    [Fact]
+    public void Briefing_props_exist_and_glasses_sit_in_front_of_the_eyes()
+    {
+        var boxes = VoxelPanda.Boxes("day");
+
+        Assert.Contains(boxes, b => b.Part == VoxelPanda.Pointer);
+        var eyeFront = boxes.Where(b => b.Part == VoxelPanda.EyesOpen).Max(b => b.X1);
+        Assert.True(boxes.Where(b => b.Part == VoxelPanda.Glasses).Max(b => b.X1) > eyeFront);
     }
 
     [Fact]

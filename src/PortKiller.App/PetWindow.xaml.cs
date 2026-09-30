@@ -104,8 +104,13 @@ public partial class PetWindow : Window
         _motion = new PetMotion(PetBody.Width, PetBody.Height, _rng);
         _motion.PlaceOnGround(DefaultX(), Bounds());
 
-        Canvas.SetLeft(DebugPanel, 20);
-        Canvas.SetTop(DebugPanel, 20);
+        DebugPanel.CloseRequested += () => SetBriefing(false);
+        DebugPanel.MouseMove += BriefingCard_MouseMove;
+        DebugPanel.MouseLeave += (_, _) =>
+        {
+            Panda.PointAt(null);
+            DebugPanel.ClearPointer();
+        };
 
         _ai = _aiStore.Load();
 
@@ -129,6 +134,7 @@ public partial class PetWindow : Window
         if (args.Contains("--open-notebook")) OpenNotebook();
         if (args.Contains("--open-ask")) OpenAsk();
         if (args.Contains("--open-ai-settings")) OpenAiSettings();
+        if (args.Contains("--briefing")) SetBriefing(true);
         var previewAt = Array.IndexOf(args, "--model-preview");
         if (previewAt >= 0 && previewAt + 1 < args.Length) new ModelPreviewWindow(args[previewAt + 1]).Show();
     }
@@ -437,10 +443,13 @@ public partial class PetWindow : Window
             _notebook.Tick(now);
 
             // 알일 때는 돌아다니지 않는다.
-            if (_pet.Stage != LifeStage.Egg)
+            // 브리핑 중에는 땅에 서 있는 동안 가만히 있는다(집어 올리거나 떨어지는 중에는 평소대로).
+            var holdStill = _briefing && _motion.Activity is not (PetActivity.Jump or PetActivity.Fall or PetActivity.Dragged);
+            if (_pet.Stage != LifeStage.Egg && !holdStill)
                 _motion.Update(delta, Bounds(), _pet.IsAsleep);
 
             ApplyMotionToScreen();
+            if (_briefing) PlaceBriefingCard();
             PositionBubble();
             if (_bubbleHideAt != DateTimeOffset.MinValue && now >= _bubbleHideAt) HideBubble();
 
@@ -649,8 +658,75 @@ public partial class PetWindow : Window
 
     private void QuitMenu_Click(object sender, RoutedEventArgs e) => Close();
 
-    private void ToggleStatus() => DebugPanel.Visibility =
-        DebugPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+    private void ToggleStatus() => SetBriefing(!_briefing);
+
+    // ---------- 브리핑(상태 보기) ----------
+
+    private bool _briefing;
+
+    /// <summary>
+    /// 레서판다가 안경을 쓰고 서서, 옆에 세운 대시보드를 지시봉으로 짚으며 상태를 브리핑한다.
+    /// 별도 창이 아니라 펫 곁에 붙어 있어서, 펫을 옮기면 카드도 따라온다.
+    /// </summary>
+    private void SetBriefing(bool on)
+    {
+        if (on == _briefing) return;
+        _briefing = on;
+        Panda.SetBriefing(on);
+
+        if (!on)
+        {
+            Panda.PointAt(null);
+            DebugPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // 자리가 더 넓은 쪽(펫이 화면 오른쪽에 있으면 왼쪽)을 보고 선다.
+        _motion.Face(_motion.X > Width / 2);
+        RefreshDebug();
+        DebugPanel.Visibility = Visibility.Visible;
+        DebugPanel.Opacity = 0;
+        DebugPanel.BeginAnimation(OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350)));
+        PlaceBriefingCard();
+    }
+
+    /// <summary>카드를 펫이 보는 쪽 옆에 세운다. 화면 밖으로 나가면 반대편을 보게 한다.</summary>
+    private void PlaceBriefingCard()
+    {
+        DebugPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var size = DebugPanel.DesiredSize;
+
+        double CardX(bool left) => left ? _motion.X - size.Width + 14 : _motion.X + PetBody.Width - 14;
+
+        var x = CardX(_motion.FacingLeft);
+        if (x < 0 || x + size.Width > Width)
+        {
+            _motion.Face(!_motion.FacingLeft);
+            x = CardX(_motion.FacingLeft);
+        }
+
+        Canvas.SetLeft(DebugPanel, Math.Clamp(x, 0, Math.Max(0, Width - size.Width)));
+        Canvas.SetTop(DebugPanel, Math.Max(0, _motion.Y + PetBody.Height - size.Height));
+    }
+
+    /// <summary>
+    /// 마우스가 카드 위를 지나갈 때만 온다(내 창 안의 이벤트). 어깨에서 마우스 쪽으로 지시봉을 향한다.
+    /// 화면 전체 커서 위치를 읽는 것이 아니다 - 카드 밖에서는 이 함수가 불리지 않는다.
+    /// </summary>
+    private void BriefingCard_MouseMove(object sender, MouseEventArgs e)
+    {
+        var p = e.GetPosition(Stage);
+        var shoulderX = _motion.X + PetBody.Width / 2;
+        var shoulderY = _motion.Y + PetBody.Height - 32;   // 일어선 어깨의 대략의 높이
+
+        var dx = p.X - shoulderX;
+        if (_motion.FacingLeft) dx = -dx;   // 왼쪽을 볼 때는 몸이 거울처럼 뒤집혀 있다
+        var angle = Math.Atan2(shoulderY - p.Y, dx) * 180 / Math.PI;
+
+        Panda.PointAt(Math.Clamp(angle, -60, 110));
+        DebugPanel.Pointer(e.GetPosition(DebugPanel));
+    }
 
     private void CareMenu_Click(object sender, RoutedEventArgs e)
     {

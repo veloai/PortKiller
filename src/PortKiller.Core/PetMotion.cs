@@ -54,6 +54,12 @@ public sealed class PetMotion
         EnterIdle();
     }
 
+    /// <summary>
+    /// 보는 방향을 정한다. 브리핑(상태 보기)처럼 펫이 어느 쪽을 봐야 하는 때 쓴다.
+    /// 걷는 방향과는 따로 논다 - 다시 걷기 시작하면 걷는 방향이 이긴다.
+    /// </summary>
+    public void Face(bool left) => FacingLeft = left;
+
     // ---------- 집어 옮기기 ----------
 
     public void BeginDrag()

@@ -31,6 +31,21 @@ public sealed class PandaView : Viewport3D
 
     private string? _builtFor;
 
+    // ---- 브리핑(서서 대시보드를 짚는 자세) ----
+    /// <summary>브리핑 때 몸이 일어서는 각도. 엉덩이를 축으로 앞쪽이 위로 들린다.</summary>
+    private const double BriefTilt = 62;
+
+    private readonly AxisAngleRotation3D _bodyTilt = new(new Vector3D(0, 0, 1), 0);
+    private readonly Model3DGroup _glasses = new();
+    private readonly Model3DGroup _pointer = new();
+    private bool _briefing;
+    private double? _pointAngle;
+    private double _tilt;
+    private double _armAngle;
+    private double _lastSeconds;
+    private bool _glassesOn;
+    private bool _pointerOn;
+
     public PandaView()
     {
         // 몸이 화면 한가운데 오도록 직교 카메라(원근 없음 - 도트 느낌이 산다).
@@ -60,9 +75,9 @@ public sealed class PandaView : Viewport3D
         var rig = new Model3DGroup();
         foreach (var light in VoxelMeshBuilder.Lights()) rig.Children.Add(light);
 
-        var body = new Model3DGroup();
-        foreach (var part in new[] { VoxelPanda.Body })
-            AddPart(body, part, species);
+        var hip = VoxelPanda.Hip;
+        var body = new Model3DGroup { Transform = new RotateTransform3D(_bodyTilt, hip.X, hip.Y, hip.Z) };
+        AddPart(body, VoxelPanda.Body, species);
 
         // 몸 위에 얹히는 부품들은 몸 그룹 안에 넣어, 몸이 출렁이면 같이 움직이게 한다.
         var head = MakeGroup(VoxelPanda.Head, species);
@@ -71,8 +86,15 @@ public sealed class PandaView : Viewport3D
         _lastEyesClosed = false;
         body.Children.Add(head);
         body.Children.Add(MakeGroup(VoxelPanda.Tail, species));
-        foreach (var leg in new[] { VoxelPanda.LegFL, VoxelPanda.LegFR, VoxelPanda.LegBL, VoxelPanda.LegBR })
+        // 앞다리는 서 있을 때 팔이 되므로 몸과 같이 기운다. 뒷다리는 바닥에 그대로 서 있다.
+        foreach (var leg in new[] { VoxelPanda.LegFL, VoxelPanda.LegFR })
+            rig.Children.Add(MakeGroup(leg, species, followsBody: true));
+        foreach (var leg in new[] { VoxelPanda.LegBL, VoxelPanda.LegBR })
             rig.Children.Add(MakeGroup(leg, species));
+
+        FillProps(species);
+        _glassesOn = false;
+        _pointerOn = false;
 
         rig.Children.Add(body);
         _parts[VoxelPanda.Body] = body;
@@ -88,7 +110,7 @@ public sealed class PandaView : Viewport3D
         _visual.Content = rig;
     }
 
-    private Model3DGroup MakeGroup(string part, string species)
+    private Model3DGroup MakeGroup(string part, string species, bool followsBody = false)
     {
         var g = new Model3DGroup();
         AddPart(g, part, species);
@@ -99,6 +121,12 @@ public sealed class PandaView : Viewport3D
         t.Children.Add(new RotateTransform3D(rot, pivot.X, pivot.Y, pivot.Z));
         var move = new TranslateTransform3D();
         t.Children.Add(move);
+        if (followsBody)
+        {
+            var hip = VoxelPanda.Hip;
+            t.Children.Add(new RotateTransform3D(_bodyTilt, hip.X, hip.Y, hip.Z));
+        }
+
         g.Transform = t;
 
         _parts[part] = g;
@@ -113,6 +141,35 @@ public sealed class PandaView : Viewport3D
         foreach (var byColor in VoxelPanda.Boxes(species).Where(b => b.Part == part).GroupBy(b => b.Color))
             group.Children.Add(VoxelMeshBuilder.BuildMesh(byColor, byColor.Key));
     }
+
+    private void FillProps(string species)
+    {
+        _glasses.Children.Clear();
+        _pointer.Children.Clear();
+        foreach (var g in VoxelPanda.Boxes(species).Where(b => b.Part == VoxelPanda.Glasses).GroupBy(b => b.Color))
+            _glasses.Children.Add(VoxelMeshBuilder.BuildMesh(g, g.Key));
+        foreach (var g in VoxelPanda.Boxes(species).Where(b => b.Part == VoxelPanda.Pointer).GroupBy(b => b.Color))
+            _pointer.Children.Add(VoxelMeshBuilder.BuildMesh(g, g.Key));
+    }
+
+    /// <summary>
+    /// 브리핑 자세를 켜고 끈다. 켜면 안경을 쓰고 뒷다리로 일어서서 지시봉을 든다.
+    /// 자세는 서서히 바뀐다(<see cref="Animate"/> 가 프레임마다 조금씩 옮긴다).
+    /// </summary>
+    public void SetBriefing(bool on)
+    {
+        _briefing = on;
+        if (!on) _pointAngle = null;
+    }
+
+    /// <summary>
+    /// 지시봉이 가리킬 방향(도). 몸이 보는 쪽이 0°, 위가 90°, 아래가 -90° 인 수학 각도다.
+    /// null 이면 가리키는 곳이 없어서 살짝 든 채로 쉰다.
+    /// </summary>
+    public void PointAt(double? angleDegrees) => _pointAngle = angleDegrees;
+
+    /// <summary>0(네 발로 섬)~1(완전히 일어섬). 브리핑을 끝내고 다 앉았는지 알 때 쓴다.</summary>
+    public double BriefingBlend => _tilt / BriefTilt;
 
     private void FillEyes(string species)
     {
@@ -133,6 +190,14 @@ public sealed class PandaView : Viewport3D
         if (_builtFor is null) return;
 
         var t = seconds;
+
+        // 브리핑 자세로 서서히 일어서거나 앉는다.
+        var dt = Math.Clamp(t - _lastSeconds, 0, 0.1);
+        _lastSeconds = t;
+        _tilt += ((_briefing ? BriefTilt : 0) - _tilt) * (1 - Math.Exp(-dt * 7));
+        var w = _tilt / BriefTilt;
+        if (_briefing) pose = PetPose.Idle;   // 브리핑 중에는 먹기·자기 같은 자세를 하지 않는다
+
         double legSwing = 0, bob = 0, headNod = 0, headTurn = 0, tailSway = Math.Sin(t * 2.0) * 8, tailDroop = 0;
         var squash = 1.0;
         var eyesClosed = false;
@@ -180,14 +245,27 @@ public sealed class PandaView : Viewport3D
         }
 
         // 다리: 앞다리 왼쪽·뒷다리 오른쪽이 한 쌍으로 움직인다(네 발 걸음)
-        _rot[VoxelPanda.LegFL].Angle = legSwing;
+        // 일어서는 만큼(w) 걸음은 잦아들고, 앞다리는 팔이 된다.
+        _bodyTilt.Angle = _tilt;
+        legSwing *= 1 - w;
         _rot[VoxelPanda.LegBR].Angle = legSwing;
-        _rot[VoxelPanda.LegFR].Angle = -legSwing;
         _rot[VoxelPanda.LegBL].Angle = -legSwing;
+
+        // 팔: 회전각 = (가리킬 방향 + 90) - 몸이 기운 만큼. 아래로 늘어뜨리면 0°, 앞으로 뻗으면 90°.
+        var wanted = (_pointAngle ?? 25) + 90 - _tilt;
+        _armAngle += (wanted - _armAngle) * (1 - Math.Exp(-dt * 10));
+        var pointing = _pointAngle is not null;
+        _rot[VoxelPanda.LegFL].Angle = legSwing + _armAngle * w;
+        _rot[VoxelPanda.LegFR].Angle = -legSwing + (14 - _tilt) * w;
+        // 설명하는 동안 고개를 살짝 끄덕이고, 가리킬 때는 더 자주 끄덕인다.
+        var talk = Math.Sin(t * (pointing ? 6 : 2.4)) * (pointing ? 3 : 1.5);
+        headNod = headNod * (1 - w) + (4 + talk) * w - _tilt;
+        tailDroop = tailDroop * (1 - w) - 0.8 * _tilt;
 
         // 머리: 끄덕임은 Z 축, 고개 돌리기는 Y 축. 두 회전을 한 축으로 못 합치므로 끄덕임만 회전에 넣고
         // 돌리기는 몸통 자체를 살짝 틀어서 흉내 낸다.
         _rot[VoxelPanda.Head].Angle = headNod;
+        SetProps();
 
         // 꼬리는 Z 축 회전으로 위아래, 좌우 흔들림은 Z 이동으로 흉내 낸다.
         _rot[VoxelPanda.Tail].Angle = tailDroop + tailSway * 0.4;
@@ -198,6 +276,22 @@ public sealed class PandaView : Viewport3D
         _squash.ScaleY = squash;
 
         SetEyes(eyesClosed);
+    }
+
+    /// <summary>안경과 지시봉은 브리핑 중에만 붙어 있다. 붙였다 뗐다 하는 것도 그룹째 넣고 빼기다.</summary>
+    private void SetProps()
+    {
+        var want = _briefing || _tilt > 3;
+        if (want == _glassesOn) return;
+        _glassesOn = _pointerOn = want;
+
+        var head = _parts[VoxelPanda.Head];
+        var arm = _parts[VoxelPanda.LegFL];
+        head.Children.Remove(_glasses);
+        arm.Children.Remove(_pointer);
+        if (!want) return;
+        head.Children.Add(_glasses);
+        arm.Children.Add(_pointer);
     }
 
     private bool? _lastEyesClosed;

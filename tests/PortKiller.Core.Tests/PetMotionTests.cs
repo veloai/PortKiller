@@ -110,4 +110,18 @@ public class PetMotionTests
         m.DragTo(99999, 500, Screen);
         Assert.Equal(Screen.Right - W, m.X, precision: 6);
     }
+
+    [Fact]
+    public void Face_sets_the_facing_direction_without_moving()
+    {
+        var m = new PetMotion(100, 100, new Random(1));
+        m.PlaceOnGround(200, new MotionBounds(0, 1000, 800));
+        var x = m.X;
+
+        m.Face(true);
+        Assert.True(m.FacingLeft);
+        m.Face(false);
+        Assert.False(m.FacingLeft);
+        Assert.Equal(x, m.X);
+    }
 }

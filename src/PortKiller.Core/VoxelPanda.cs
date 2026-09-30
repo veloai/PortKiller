@@ -21,7 +21,14 @@ public static class VoxelPanda
     public const string LegBL = "LegBL";
     public const string LegBR = "LegBR";
 
+    /// <summary>브리핑 때만 쓰는 소품. 안경은 머리에, 지시봉은 앞다리(LegFL)에 붙는다. 평소엔 화면에 없다.</summary>
+    public const string Glasses = "Glasses";
+    public const string Pointer = "Pointer";
+
     /// <summary>부품이 돌 때의 축 위치(목, 엉덩이, 꼬리 밑동).</summary>
+    /// <summary>서서 브리핑할 때 몸이 기울어 서는 축(엉덩이). 앞다리는 몸과 같이 기운다.</summary>
+    public static readonly (float X, float Y, float Z) Hip = (-2.6f, 3.2f, 0f);
+
     public static readonly IReadOnlyDictionary<string, (float X, float Y, float Z)> Pivots =
         new Dictionary<string, (float, float, float)>
         {
@@ -48,6 +55,7 @@ public static class VoxelPanda
     {
         var c = PaletteFor(speciesId);
         var eye = "#120B0B";
+        const string frame = "#1B1B22";
         var list = new List<VoxelBox>
         {
             // 몸통 + 가슴 흰 무늬
@@ -82,6 +90,23 @@ public static class VoxelPanda
             new(LegFR, c.Dark, 1.5f, 0f, -2.8f, 3.8f, 3.4f, -0.8f),
             new(LegBL, c.Dark, -3.8f, 0f, 0.8f, -1.5f, 3.4f, 2.8f),
             new(LegBR, c.Dark, -3.8f, 0f, -2.8f, -1.5f, 3.4f, -0.8f),
+
+            // 안경(브리핑 소품): 검은 테 둘 + 코다리 + 다리
+            new(Glasses, frame, 9.6f, 11.7f, 1.3f, 10f, 12.05f, 3.5f),
+            new(Glasses, frame, 9.6f, 9.5f, 1.3f, 10f, 9.85f, 3.5f),
+            new(Glasses, frame, 9.6f, 9.5f, 1.3f, 10f, 12.05f, 1.6f),
+            new(Glasses, frame, 9.6f, 9.5f, 3.2f, 10f, 12.05f, 3.5f),
+            new(Glasses, frame, 9.6f, 11.7f, -3.5f, 10f, 12.05f, -1.3f),
+            new(Glasses, frame, 9.6f, 9.5f, -3.5f, 10f, 9.85f, -1.3f),
+            new(Glasses, frame, 9.6f, 9.5f, -1.6f, 10f, 12.05f, -1.3f),
+            new(Glasses, frame, 9.6f, 9.5f, -3.5f, 10f, 12.05f, -3.2f),
+            new(Glasses, frame, 9.6f, 10.6f, -1.3f, 10f, 10.95f, 1.3f),
+            new(Glasses, frame, 5.5f, 11.2f, 4f, 9.6f, 11.55f, 4.3f),
+            new(Glasses, frame, 5.5f, 11.2f, -4.3f, 9.6f, 11.55f, -4f),
+
+            // 지시봉(브리핑 소품): 손에서 아래로 길게 뻗은 막대. 앞다리와 같이 회전해서 가리킨다.
+            new(Pointer, "#E9D28B", 2.35f, -6.4f, 1.5f, 2.95f, 0.6f, 2.1f),
+            new(Pointer, "#E5484D", 2.15f, -7.4f, 1.3f, 3.15f, -6.4f, 2.3f),
 
             // 꼬리: 굵은 줄무늬가 위로 말려 올라간다
             new(Tail, c.Rust, -7f, 4.3f, -1.6f, -3.8f, 7.5f, 1.6f),

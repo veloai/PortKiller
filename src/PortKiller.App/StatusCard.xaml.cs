@@ -30,6 +30,24 @@ public partial class StatusCard : UserControl
     };
 
     private readonly List<(Border Fill, TextBlock Value)> _rows = new();
+    private readonly List<Grid> _rowGrids = new();
+    private static readonly BriefingTopic[] Topics =
+    {
+        BriefingTopic.Hunger, BriefingTopic.Happiness, BriefingTopic.Energy,
+        BriefingTopic.Health, BriefingTopic.Cleanliness,
+    };
+
+    private Pet? _pet;
+    private int _hover = -1;
+
+    /// <summary>✕ 를 눌렀다. 브리핑을 끝내 달라는 뜻이다.</summary>
+    public event Action? CloseRequested;
+
+    private void Close_Clicked(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        CloseRequested?.Invoke();
+        e.Handled = true;
+    }
 
     public StatusCard()
     {
@@ -57,13 +75,59 @@ public partial class StatusCard : UserControl
             grid.Children.Add(label);
             grid.Children.Add(track);
             grid.Children.Add(value);
+            grid.Background = Brushes.Transparent;   // 비어 있는 곳도 가리킬 수 있게 하고, 강조색이 들어갈 자리
             Bars.Children.Add(grid);
+            _rowGrids.Add(grid);
             _rows.Add((fill, value));
         }
     }
 
+    /// <summary>
+    /// 마우스가 카드 위 <paramref name="p"/>(카드 좌표)에 있다. 그 자리의 항목을 강조하고 레서판다가 한마디 한다.
+    /// 항목이 아닌 곳이면 전체 요약을 말한다.
+    /// </summary>
+    public void Pointer(Point p)
+    {
+        var hover = -1;
+        for (var i = 0; i < _rowGrids.Count; i++)
+        {
+            var g = _rowGrids[i];
+            if (g.ActualHeight <= 0) continue;
+            var top = g.TranslatePoint(new Point(0, 0), this).Y - 3;
+            if (p.Y >= top && p.Y <= top + g.ActualHeight + 6) { hover = i; break; }
+        }
+
+        if (hover == _hover) return;
+        _hover = hover;
+        Highlight();
+        RefreshCaption();
+    }
+
+    /// <summary>마우스가 카드를 떠났다.</summary>
+    public void ClearPointer()
+    {
+        _hover = -1;
+        Highlight();
+        RefreshCaption();
+    }
+
+    private void Highlight()
+    {
+        for (var i = 0; i < _rowGrids.Count; i++)
+            _rowGrids[i].Background = i == _hover ? Hex("#33FFFFFF") : Brushes.Transparent;
+    }
+
+    private void RefreshCaption()
+    {
+        if (_pet is null) return;
+        Caption.Text = _hover >= 0
+            ? Briefing.Line(Topics[_hover], _defs[_hover].Read(_pet))
+            : Briefing.Summary(_pet.Stats);
+    }
+
     public void Update(Pet pet, bool userAway)
     {
+        _pet = pet;
         TitleText.Text = TitleFor(pet);
         SubText.Text = pet.Stage == LifeStage.Egg ? "곧 태어날 것 같아요" : SpeciesName(pet.SpeciesId);
         ApplyMood(pet, userAway);
@@ -79,6 +143,7 @@ public partial class StatusCard : UserControl
         }
 
         UpdateGrowth(pet);
+        RefreshCaption();
 
         FocusText.Text = $"⏱ {pet.FocusSeconds / 3600.0:F1}h";
         DaysText.Text = $"📅 {pet.DistinctActiveDays}일";
