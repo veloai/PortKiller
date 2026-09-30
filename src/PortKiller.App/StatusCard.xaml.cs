@@ -158,8 +158,8 @@ public partial class StatusCard : UserControl
     private static string SpeciesName(string id) => id switch
     {
         "" => "-",
-        "day" => "낮의 다람쥐",
-        "evening" => "저녁의 다람쥐",
+        "day" => "낮의 레서판다",
+        "evening" => "저녁의 레서판다",
         _ => id,
     };
 

@@ -14,13 +14,15 @@ Workspace Utilizer & Open Development Tools
 - 응아: 시간이 지나면 생기고 클릭하면 치워진다
 - 수첩: 오늘 할 일 3개, 리마인더(한 번/매일/평일), 뽀모도로 25분 집중
 - 트레이 아이콘: 상태 보기 / 수첩 / 항상 위 / 자동 실행 / 초기화 / 종료
-- 아이콘: 트레이·exe 둘 다 캐릭터 얼굴 (16~256px 여러 크기를 담은 .ico)
+- 아이콘: 트레이·exe 둘 다 PKP 글자 아이콘 (16~256px 여러 크기를 담은 .ico)
 - **AI 물어보기**: 프롬프트를 적고 엔터를 누르면 답한다. Gemini / OpenAI 중 골라 쓴다
   - 열쇠는 설정 창에서 등록한다. 윈도우 DPAPI 로 **암호화**해서 내 계정에만 저장된다
   - 질문과 답은 저장하지 않는다. 나가는 통신은 이것 하나뿐이다
   - 자세히: [docs/verification/ai-ask.md](docs/verification/ai-ask.md)
 
-캐릭터 그림: 알 4장 + 다람쥐 1종 × 3단계 × 8포즈 + 응아 (직접 생성, `tools/gen-sprites.mjs`)
+캐릭터: **3D 도트(복셀) 레서판다**. 알·응아·펫 모두 코드로 조립한 큐브 모델이라 그림 파일이 필요 없다
+(`Core/VoxelPanda.cs`, `Core/VoxelProps.cs` 가 설계도, `App/PandaView.cs` 가 그리고 움직인다).
+예전 2D 다람쥐 그림(`assets/sprites`)은 더 이상 쓰이지 않는다(기록용으로 남김).
 
 ### 구조
 

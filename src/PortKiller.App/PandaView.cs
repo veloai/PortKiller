@@ -58,8 +58,7 @@ public sealed class PandaView : Viewport3D
         _move.Clear();
 
         var rig = new Model3DGroup();
-        rig.Children.Add(new AmbientLight(Color.FromRgb(0xA8, 0xA8, 0xA8)));
-        rig.Children.Add(new DirectionalLight(Color.FromRgb(0xA0, 0xA0, 0xA0), new Vector3D(-0.5, -0.8, -0.6)));
+        foreach (var light in VoxelMeshBuilder.Lights()) rig.Children.Add(light);
 
         var body = new Model3DGroup();
         foreach (var part in new[] { VoxelPanda.Body })
@@ -83,8 +82,7 @@ public sealed class PandaView : Viewport3D
         all.Children.Add(_stageScale);
         all.Children.Add(_squash);
         all.Children.Add(_rigMove);
-        all.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 1, 0), -32), CenterX, 0, 0));
-        all.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), 12), CenterX, 6, 0));
+        all.Children.Add(VoxelMeshBuilder.ThreeQuarterView(CenterX, 6));
         rig.Transform = all;
 
         _visual.Content = rig;
@@ -113,7 +111,7 @@ public sealed class PandaView : Viewport3D
     {
         // 같은 색 상자끼리 한 메시로 묶는다(재질 수 = 색 수).
         foreach (var byColor in VoxelPanda.Boxes(species).Where(b => b.Part == part).GroupBy(b => b.Color))
-            group.Children.Add(BuildMesh(byColor, byColor.Key));
+            group.Children.Add(VoxelMeshBuilder.BuildMesh(byColor, byColor.Key));
     }
 
     private void FillEyes(string species)
@@ -121,40 +119,9 @@ public sealed class PandaView : Viewport3D
         _eyesOpen.Children.Clear();
         _eyesClosed.Children.Clear();
         foreach (var g in VoxelPanda.Boxes(species).Where(b => b.Part == VoxelPanda.EyesOpen).GroupBy(b => b.Color))
-            _eyesOpen.Children.Add(BuildMesh(g, g.Key));
+            _eyesOpen.Children.Add(VoxelMeshBuilder.BuildMesh(g, g.Key));
         foreach (var g in VoxelPanda.Boxes(species).Where(b => b.Part == VoxelPanda.EyesClosed).GroupBy(b => b.Color))
-            _eyesClosed.Children.Add(BuildMesh(g, g.Key));
-    }
-
-    private static GeometryModel3D BuildMesh(IEnumerable<VoxelBox> boxes, string hex)
-    {
-        var mesh = new MeshGeometry3D();
-        foreach (var b in boxes) AddBox(mesh, b);
-        mesh.Freeze();
-
-        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)!);
-        brush.Freeze();
-        return new GeometryModel3D(mesh, new DiffuseMaterial(brush));
-    }
-
-    /// <summary>면마다 꼭짓점을 따로 둔다 - 법선이 면마다 달라야 큐브가 각져 보인다(부드럽게 섞이면 도트가 아니다).</summary>
-    private static void AddBox(MeshGeometry3D m, VoxelBox b)
-    {
-        void Face(Point3D a, Point3D bb, Point3D c, Point3D d, Vector3D n)
-        {
-            var i = m.Positions.Count;
-            m.Positions.Add(a); m.Positions.Add(bb); m.Positions.Add(c); m.Positions.Add(d);
-            for (var k = 0; k < 4; k++) m.Normals.Add(n);
-            foreach (var idx in new[] { 0, 1, 2, 0, 2, 3 }) m.TriangleIndices.Add(i + idx);
-        }
-
-        double x0 = b.X0, y0 = b.Y0, z0 = b.Z0, x1 = b.X1, y1 = b.Y1, z1 = b.Z1;
-        Face(new(x0, y0, z1), new(x1, y0, z1), new(x1, y1, z1), new(x0, y1, z1), new(0, 0, 1));    // +Z
-        Face(new(x1, y0, z0), new(x0, y0, z0), new(x0, y1, z0), new(x1, y1, z0), new(0, 0, -1));   // -Z
-        Face(new(x1, y0, z1), new(x1, y0, z0), new(x1, y1, z0), new(x1, y1, z1), new(1, 0, 0));    // +X
-        Face(new(x0, y0, z0), new(x0, y0, z1), new(x0, y1, z1), new(x0, y1, z0), new(-1, 0, 0));   // -X
-        Face(new(x0, y1, z1), new(x1, y1, z1), new(x1, y1, z0), new(x0, y1, z0), new(0, 1, 0));    // +Y
-        Face(new(x0, y0, z0), new(x1, y0, z0), new(x1, y0, z1), new(x0, y0, z1), new(0, -1, 0));   // -Y
+            _eyesClosed.Children.Add(VoxelMeshBuilder.BuildMesh(g, g.Key));
     }
 
     /// <summary>

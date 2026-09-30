@@ -31,11 +31,16 @@ public partial class PetWindow : Window
     /// </summary>
     private static readonly TimeSpan SaveInterval = TimeSpan.FromSeconds(60);
 
-    private readonly ISaveStore _store = new JsonSaveStore();
+    private readonly ISaveStore _store = new JsonSaveStore(ArgValue("--save-dir"));
     private readonly ActivityMonitor _activity = new();
     private readonly Random _rng = new();
     private readonly List<FrameworkElement> _poops = new();
-    private readonly SpriteLibrary _sprites = new();
+    private static readonly IReadOnlyList<VoxelBox> EggPlain = VoxelProps.Egg(cracked: false);
+    private static readonly IReadOnlyList<VoxelBox> EggCracked = VoxelProps.Egg(cracked: true);
+    private static readonly IReadOnlyList<VoxelBox> PoopBoxes = VoxelProps.Poop();
+
+    /// <summary>알 그림. 알일 때만 보인다.</summary>
+    private readonly VoxelPropView _eggView = new(28, VoxelProps.EggHeight) { Visibility = Visibility.Collapsed };
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
 
     private readonly ApiKeyStore _keys = new();
@@ -74,6 +79,7 @@ public partial class PetWindow : Window
     public PetWindow()
     {
         InitializeComponent();
+        BodyLayers.Children.Add(_eggView);
 
         Loaded += OnLoaded;
         SourceInitialized += OnSourceInitialized;
@@ -382,6 +388,17 @@ public partial class PetWindow : Window
 
     // ---------- 게임 루프 ----------
 
+    /// <summary>
+    /// 검사용 통로. `--save-dir 폴더` 를 주면 세이브를 그 폴더에서 읽고 쓴다.
+    /// 진짜 펫의 저장 파일을 건드리지 않고 알·응아 같은 상태를 눈으로 보려는 것이다. 안 주면 원래 자리.
+    /// </summary>
+    private static string? ArgValue(string name)
+    {
+        var args = Environment.GetCommandLineArgs();
+        var i = Array.IndexOf(args, name);
+        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+    }
+
     private void LoadPet()
     {
         var data = _store.Load();
@@ -448,62 +465,28 @@ public partial class PetWindow : Window
     }
 
     /// <summary>
-    /// 지금 화면에 보여야 할 모습으로 맞춘다. 그림이 깔려 있으면 그림을, 없으면 이모지를 쓴다.
-    /// 게임 루프에서 초당 60번 불리므로 여기서 무거운 일을 하면 안 된다
-    /// (파일 찾기·디코딩은 <see cref="SpriteLibrary"/> 가 한 번만 하고 기억한다).
+    /// 지금 화면에 보여야 할 모습으로 맞춘다. 알이면 복셀 알, 아니면 복셀 레서판다.
+    /// 둘 다 코드로 조립한 모델이라 그림 파일이 필요 없고 항상 그려진다.
+    /// 게임 루프에서 초당 60번 불리므로 모양(상자)은 바뀔 때만 다시 만든다.
     /// </summary>
     private void RefreshFace()
     {
-        // 알이 아니면 3D 도트 레서판다. 그림 파일이 없어도 항상 그려진다(코드로 조립하는 모델이라서).
-        if (_pet.Stage != LifeStage.Egg)
+        ClearBodyCircle();
+
+        if (_pet.Stage == LifeStage.Egg)
         {
-            var pose = CurrentPose();
-            Panda.Configure(_pet.SpeciesId, _pet.Stage);
-            Panda.Animate(pose, pose is PetPose.Walk1 or PetPose.Walk2, _clock.Elapsed.TotalSeconds);
-            Panda.Visibility = Visibility.Visible;
-            PetSprite.Visibility = Visibility.Collapsed;
-            PetFace.Visibility = Visibility.Collapsed;
-            ClearBodyCircle();
+            Panda.Visibility = Visibility.Collapsed;
+            _eggView.Visibility = Visibility.Visible;
+            _eggView.Show(_pet.HatchClicks >= Balance.HatchClicksRequired - 5 ? EggCracked : EggPlain);
+            _eggView.Tilt = EggTilt();
             return;
         }
 
-        Panda.Visibility = Visibility.Collapsed;
-
-        var sprite = _pet.Stage == LifeStage.Egg
-            ? _sprites.Egg(EggPose())
-            : _sprites.Character(_pet.SpeciesId, _pet.Stage, CurrentPose());
-
-        if (sprite is not null)
-        {
-            PetSprite.Source = sprite;
-            PetSprite.Visibility = Visibility.Visible;
-            PetFace.Visibility = Visibility.Collapsed;
-
-            // 그림이 있으면 초록 동그라미는 치운다.
-            //
-            // 배경을 null 로 두면 안 된다 — WPF 는 배경이 없는 요소를 <b>마우스 대상으로 치지 않는다.</b>
-            // 그러면 펫을 눌러도 집어 옮기기도 부화 클릭도 반응하지 않는다(실제로 그렇게 깨뜨렸다).
-            // Transparent 는 "투명하지만 있는 것"이라 마우스를 받는다.
-            //
-            // 이렇게 둬도 클릭 통과는 안 막힌다. 완전히 투명한 픽셀은 창 밖으로 넘어가서
-            // 앱에 도달조차 하지 않기 때문이다(docs/verification/clickthrough.md).
-            ClearBodyCircle();
-            return;
-        }
-
-        PetSprite.Visibility = Visibility.Collapsed;
-        PetFace.Visibility = Visibility.Visible;
-        PetFace.Text = _pet.Stage switch
-        {
-            LifeStage.Egg => "🥚",
-            LifeStage.Baby => "🐣",
-            LifeStage.Child => "🐤",
-            _ => "🐔",
-        };
-
-        if (_pet.IsSick) PetFace.Text = "🤒";
-        else if (_pet.IsAsleep) PetFace.Text = "😴";
-        else if (_pet.IsSulking) PetFace.Text = "😤";
+        _eggView.Visibility = Visibility.Collapsed;
+        var pose = CurrentPose();
+        Panda.Configure(_pet.SpeciesId, _pet.Stage);
+        Panda.Animate(pose, pose is PetPose.Walk1 or PetPose.Walk2, _clock.Elapsed.TotalSeconds);
+        Panda.Visibility = Visibility.Visible;
     }
 
     /// <summary>그림·3D 가 있으면 초록 동그라미는 치운다. 배경을 null 이 아니라 Transparent 로 두는 이유는 위 주석 참고.</summary>
@@ -515,15 +498,14 @@ public partial class PetWindow : Window
     }
 
     /// <summary>
-    /// 알은 부화가 가까울수록 금이 간 그림을 보여 주고, 클릭 직후에는 좌우로 흔들린다.
-    /// 흔들림은 <see cref="Pet.HatchClicks"/> 의 홀짝으로 가른다 — 따로 타이머를 두면
+    /// 알이 기우는 각도. 클릭 직후에는 좌우로 크게 흔들리고, 평소에는 아주 조금 까딱인다.
+    /// 흔들림 방향은 <see cref="Pet.HatchClicks"/> 의 홀짝으로 가른다 - 따로 타이머를 두면
     /// 클릭과 어긋나 "눌렀는데 반응이 없다"가 된다.
     /// </summary>
-    private string EggPose()
+    private double EggTilt()
     {
-        if (_pet.HatchClicks >= Balance.HatchClicksRequired - 5) return "crack";
-        if (_reactionUntil > DateTimeOffset.Now) return _pet.HatchClicks % 2 == 0 ? "tilt1" : "tilt2";
-        return "idle";
+        if (_reactionUntil > DateTimeOffset.Now) return _pet.HatchClicks % 2 == 0 ? 14 : -14;
+        return Math.Sin(_clock.Elapsed.TotalSeconds * 1.6) * 2;
     }
 
     /// <summary>
@@ -718,27 +700,18 @@ public partial class PetWindow : Window
     {
         for (var i = 0; i < count; i++)
         {
-            // 그림이 있으면 그림을, 없으면 갈색 동그라미를 쓴다.
-            var art = _sprites.Poop();
-            FrameworkElement poop = art is null
-                ? new Border
-                {
-                    Width = 40,
-                    Height = 40,
-                    CornerRadius = new CornerRadius(20),
-                    Background = new SolidColorBrush(Color.FromRgb(0x8D, 0x6E, 0x4A)),
-                    Cursor = Cursors.Hand,
-                    ToolTip = "클릭해서 치우기",
-                }
-                : new Image
-                {
-                    Width = 40,
-                    Height = 40,
-                    Source = art,
-                    Stretch = Stretch.Uniform,
-                    Cursor = Cursors.Hand,
-                    ToolTip = "클릭해서 치우기",
-                };
+            // 눌림은 투명한 판(Border)이 받는다. 3D 그림은 눌림을 받지 않는다.
+            var view = new VoxelPropView(10, VoxelProps.PoopHeight);
+            view.Show(PoopBoxes);
+            var poop = new Border
+            {
+                Width = 40,
+                Height = 40,
+                Background = Brushes.Transparent,
+                Child = view,
+                Cursor = Cursors.Hand,
+                ToolTip = "클릭해서 치우기",
+            };
             poop.MouseLeftButtonDown += Poop_Clicked;
 
             // 펫 근처 바닥에 흩어 놓되, 펫 몸통에 가려 안 보이는 일이 없도록 최소 거리를 둔다.
