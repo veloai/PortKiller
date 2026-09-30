@@ -7,6 +7,12 @@
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
+  <!-- NAC 자동 로그인(UI 자동화)용. 기본 제공 어셈블리(UIAutomationClient)만 쓰고 NuGet 은 없다.
+       UseWPF 를 켜면 암시적 using(System.IO 등)이 빠져서 기존 코드가 깨지므로 참조만 건다. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\PortKiller.Core\PortKiller.Core.csproj" />
   </ItemGroup>

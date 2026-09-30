@@ -39,6 +39,8 @@ public partial class PetWindow : Window
 
     private readonly ApiKeyStore _keys = new();
     private readonly AiSettingsStore _aiStore = new();
+    private readonly NacCredentialStore _nac = new();
+    private readonly CancellationTokenSource _nacCancel = new();
 
     /// <summary>
     /// 앱 전체가 하나만 쓴다. 물어볼 때마다 새로 만들면 연결이 쌓여 소켓이 마른다.
@@ -54,6 +56,7 @@ public partial class PetWindow : Window
     private NotebookWindow? _notebookWindow;
     private AskWindow? _askWindow;
     private AiSettingsWindow? _aiSettingsWindow;
+    private NacSettingsWindow? _nacSettingsWindow;
     private DispatcherTimer? _gameLoop;
     private DateTimeOffset _lastTick = DateTimeOffset.Now;
     private DateTimeOffset _lastTooltipUpdate = DateTimeOffset.MinValue;
@@ -103,6 +106,7 @@ public partial class PetWindow : Window
         SetUpTray();
         StartGameLoop();
         OpenNotebookIfRequested();
+        _ = AutoLoginNacOnStartAsync();
     }
 
     /// <summary>
@@ -143,6 +147,7 @@ public partial class PetWindow : Window
         _tray.NotebookRequested += OpenNotebook;
         _tray.AskRequested += OpenAsk;
         _tray.AiSettingsRequested += OpenAiSettings;
+        _tray.NacSettingsRequested += OpenNacSettings;
         _tray.ResetRequested += ConfirmAndReset;
         _tray.QuitRequested += Close;
     }
@@ -211,6 +216,56 @@ public partial class PetWindow : Window
         _aiSettingsWindow.Saved += () => _askWindow?.RefreshProviderLabel();
         _aiSettingsWindow.Closed += (_, _) => _aiSettingsWindow = null;
         _aiSettingsWindow.Show();
+    }
+
+    private void OpenNacSettings()
+    {
+        if (_nacSettingsWindow is not null)
+        {
+            _nacSettingsWindow.Activate();
+            return;
+        }
+
+        _nacSettingsWindow = new NacSettingsWindow(_nac);
+        _nacSettingsWindow.TryNowRequested += async () =>
+        {
+            var result = await TryNacLoginAsync(TimeSpan.FromSeconds(3));
+            SayNacResult(result);
+            return result;
+        };
+        _nacSettingsWindow.Closed += (_, _) => _nacSettingsWindow = null;
+        _nacSettingsWindow.Show();
+    }
+
+    /// <summary>
+    /// 펫이 켜질 때(= 재부팅 뒤 자동 실행 포함) 한 번, Genian 로그인 창을 기다렸다가 채운다.
+    /// 등록·켜짐이 아니면 아무것도 하지 않는다. 기다리는 시간은 2분으로 끝난다.
+    /// </summary>
+    private async Task AutoLoginNacOnStartAsync()
+    {
+        var cred = _nac.Load();
+        if (cred is not { Enabled: true }) return;
+
+        var result = await TryNacLoginAsync(TimeSpan.FromMinutes(2));
+        // 창이 안 뜬 것(이미 인증됨)은 정상이라 조용히 넘어간다. 누른 것과 실패만 알린다.
+        if (result.Outcome != NacLoginOutcome.NotFound) SayNacResult(result);
+    }
+
+    private Task<NacLoginResult> TryNacLoginAsync(TimeSpan wait)
+    {
+        var cred = _nac.Load();
+        if (cred is null)
+            return Task.FromResult(new NacLoginResult(NacLoginOutcome.Failed, "먼저 아이디와 비밀번호를 저장해 주세요."));
+
+        // UI 자동화 호출은 블로킹이라 UI 스레드에서 부르면 펫이 멈춘다.
+        return Task.Run(() => NacAutoLogin.Run(cred, wait, _nacCancel.Token));
+    }
+
+    private void SayNacResult(NacLoginResult result)
+    {
+        Say(result.Outcome == NacLoginOutcome.Submitted
+            ? "NAC 인증 눌렀어!"
+            : "NAC: " + result.Message);
     }
 
     /// <summary>
@@ -752,6 +807,7 @@ public partial class PetWindow : Window
     {
         _store.Save(BuildSave());
         _notebookWindow?.Close();
+        _nacCancel.Cancel();
         _gameLoop?.Stop();
         _activity.Dispose();
 
