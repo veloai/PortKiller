@@ -19,8 +19,8 @@
         <Canvas x:Name="PoopLayer" />
 
         <Border x:Name="PetBody"
-                Width="96" Height="96"
-                CornerRadius="48"
+                Width="104" Height="104"
+                CornerRadius="52"
                 Background="#FF7BC96F"
                 BorderBrush="#FF3F7A38"
                 BorderThickness="3"
@@ -31,6 +31,8 @@
             <!-- 그림이 있으면 PetSprite 가 보이고, 아직 없으면 PetFace(이모지)로 돌아간다.
                  둘을 겹쳐 두고 보이기만 바꾼다 - 자리를 옮기지 않아야 발 높이가 안 흔들린다. -->
             <Grid>
+                <!-- 알이 아닐 때 보이는 3D 도트 레서판다. 알은 아래 그림을 쓴다. -->
+                <local:PandaView x:Name="Panda" Visibility="Collapsed" />
                 <Image x:Name="PetSprite"
                        Visibility="Collapsed"
                        Stretch="Uniform"

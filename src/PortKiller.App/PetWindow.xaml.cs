@@ -36,6 +36,7 @@ public partial class PetWindow : Window
     private readonly Random _rng = new();
     private readonly List<FrameworkElement> _poops = new();
     private readonly SpriteLibrary _sprites = new();
+    private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
 
     private readonly ApiKeyStore _keys = new();
     private readonly AiSettingsStore _aiStore = new();
@@ -453,6 +454,21 @@ public partial class PetWindow : Window
     /// </summary>
     private void RefreshFace()
     {
+        // 알이 아니면 3D 도트 레서판다. 그림 파일이 없어도 항상 그려진다(코드로 조립하는 모델이라서).
+        if (_pet.Stage != LifeStage.Egg)
+        {
+            var pose = CurrentPose();
+            Panda.Configure(_pet.SpeciesId, _pet.Stage);
+            Panda.Animate(pose, pose is PetPose.Walk1 or PetPose.Walk2, _clock.Elapsed.TotalSeconds);
+            Panda.Visibility = Visibility.Visible;
+            PetSprite.Visibility = Visibility.Collapsed;
+            PetFace.Visibility = Visibility.Collapsed;
+            ClearBodyCircle();
+            return;
+        }
+
+        Panda.Visibility = Visibility.Collapsed;
+
         var sprite = _pet.Stage == LifeStage.Egg
             ? _sprites.Egg(EggPose())
             : _sprites.Character(_pet.SpeciesId, _pet.Stage, CurrentPose());
@@ -471,11 +487,7 @@ public partial class PetWindow : Window
             //
             // 이렇게 둬도 클릭 통과는 안 막힌다. 완전히 투명한 픽셀은 창 밖으로 넘어가서
             // 앱에 도달조차 하지 않기 때문이다(docs/verification/clickthrough.md).
-            if (PetBody.BorderThickness.Left != 0)
-            {
-                PetBody.Background = Brushes.Transparent;
-                PetBody.BorderThickness = new Thickness(0);
-            }
+            ClearBodyCircle();
             return;
         }
 
@@ -492,6 +504,14 @@ public partial class PetWindow : Window
         if (_pet.IsSick) PetFace.Text = "🤒";
         else if (_pet.IsAsleep) PetFace.Text = "😴";
         else if (_pet.IsSulking) PetFace.Text = "😤";
+    }
+
+    /// <summary>그림·3D 가 있으면 초록 동그라미는 치운다. 배경을 null 이 아니라 Transparent 로 두는 이유는 위 주석 참고.</summary>
+    private void ClearBodyCircle()
+    {
+        if (PetBody.BorderThickness.Left == 0) return;
+        PetBody.Background = Brushes.Transparent;
+        PetBody.BorderThickness = new Thickness(0);
     }
 
     /// <summary>
