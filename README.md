@@ -57,7 +57,9 @@ dotnet run --project src/PortKiller.App
 GEMINI_API_KEY=... node tools/gen-sprites.mjs       # 그림 뽑기 (돈이 나간다)
 powershell -File scripts/matte-batch.ps1            # 배경 벗겨 투명 PNG 로
 powershell -File scripts/sprite-sheet.ps1           # 전부 한 장에 모아 눈으로 확인
-powershell -File scripts/make-ico.ps1 -In assets/icons/head.png -Out assets/icons/app.ico
+powershell -File scripts/make-pkp-icon.ps1 -Out assets/icons/pkp.png             # 아이콘(PKP) 그림 한 장
+powershell -File scripts/make-ico.ps1 -In assets/icons/pkp.png -Out assets/icons/app.ico
+powershell -File scripts/make-ico.ps1 -In assets/icons/pkp.png -Out assets/icons/tray.ico -Sizes 16,20,24,32,40,48,64
 ```
 
 열쇠는 저장소에 두지 않는다 - 실행할 때 환경변수로만 준다.

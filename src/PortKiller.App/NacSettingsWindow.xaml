@@ -61,7 +61,11 @@
                                      Margin="0,0,0,8" />
                         <CheckBox x:Name="Enabled"
                                   AutomationProperties.AutomationId="NacEnabled"
+                                  Margin="0,0,0,6"
                                   Content="펫이 켜질 때 로그인 창이 뜨면 자동으로 입력하고 [인증]을 누른다" />
+                        <CheckBox x:Name="Autostart"
+                                  AutomationProperties.AutomationId="NacAutostart"
+                                  Content="윈도우 시작 시 PKP 자동 실행 (시작 프로그램에 등록)" />
                     </StackPanel>
                 </Border>
 
@@ -70,7 +74,7 @@
                         <TextBlock Style="{StaticResource SectionTitle}" Text="이렇게 동작해요" />
                         <TextBlock Style="{StaticResource Hint}">
                             재부팅 뒤 펫이 켜지면 2분 동안 Genian 로그인 창을 기다립니다.
-                            <Run FontWeight="Bold">재부팅 때 쓰려면 트레이 메뉴의 "시작 시 자동 실행"도 켜 두세요.</Run>
+                            <Run FontWeight="Bold">재부팅 때 쓰려면 위의 "윈도우 시작 시 PKP 자동 실행"도 체크하세요.</Run>
                         </TextBlock>
                         <TextBlock Style="{StaticResource Hint}">
                             <Run FontWeight="Bold">딱 한 번만</Run> 시도합니다. 비밀번호가 틀려도 되풀이하지 않아요 (계정 잠금 방지).

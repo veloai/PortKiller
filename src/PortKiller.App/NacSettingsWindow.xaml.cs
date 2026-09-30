@@ -29,6 +29,7 @@ public partial class NacSettingsWindow : Window
         var cred = _store.Load();
         UserId.Text = cred?.UserId ?? string.Empty;
         Enabled.IsChecked = cred?.Enabled ?? true;
+        Autostart.IsChecked = ReadAutostart();
         State.Text = cred is null
             ? "등록되지 않음"
             : "등록됨 (비밀번호를 바꾸려면 새로 적으세요. 비워 두면 그대로 둡니다)";
@@ -52,6 +53,7 @@ public partial class NacSettingsWindow : Window
             }
 
             _store.Save(new NacCredential(id, pw, Enabled.IsChecked == true));
+            ApplyAutostart(Autostart.IsChecked == true);
             Password.Clear();
             Fill();
             SaveState.Text = "저장했어요.";
@@ -59,6 +61,26 @@ public partial class NacSettingsWindow : Window
         catch (Exception)
         {
             SaveState.Text = "저장하지 못했어요. 폴더 권한을 확인해 주세요.";
+        }
+    }
+
+    // 저장 버튼을 누른 때에만 시작 프로그램 등록을 바꾼다. 사용자가 직접 체크한 값을 따른다.
+    private static bool ReadAutostart()
+    {
+        try { return AutostartManager.IsEnabled(); }
+        catch (Exception) { return false; }
+    }
+
+    private static void ApplyAutostart(bool enable)
+    {
+        try
+        {
+            if (enable) AutostartManager.Enable();
+            else AutostartManager.Disable();
+        }
+        catch (Exception)
+        {
+            // 정책·권한으로 막히면 그대로 둔다. Fill() 이 실제 레지스트리 상태를 다시 보여 준다.
         }
     }
 
