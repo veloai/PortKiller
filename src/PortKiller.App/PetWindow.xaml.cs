@@ -133,8 +133,7 @@ public partial class PetWindow : Window
     private void SetUpTray()
     {
         _tray = new TrayIcon();
-        _tray.StatsRequested += () => DebugPanel.Visibility =
-            DebugPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        _tray.StatsRequested += ToggleStatus;
         _tray.AlwaysOnTopToggled += on => Topmost = on;
 
         // 잠깐 치우기. 창만 숨기고 펫은 계속 산다 — 배고픔도 응아도 그대로 흐른다.
@@ -535,16 +534,7 @@ public partial class PetWindow : Window
         _reactionUntil = DateTimeOffset.Now + ReactionHold;
     }
 
-    private void RefreshDebug()
-    {
-        DebugText.Text =
-            $"단계 {_pet.Stage}  종 {(_pet.SpeciesId is "" ? "-" : _pet.SpeciesId)}  동작 {_motion.Activity}\n" +
-            $"배부름 {_pet.Stats.Hunger:F0}  행복 {_pet.Stats.Happiness:F0}  " +
-            $"기력 {_pet.Stats.Energy:F0}  체력 {_pet.Stats.Health:F0}  청결 {_pet.Stats.Cleanliness:F0}\n" +
-            $"집중 {_pet.FocusSeconds / 3600.0:F2}h  출근 {_pet.DistinctActiveDays}일  " +
-            $"응아 {_pet.PoopsOnGround}개  자리비움 {(_activity.IsIdle ? "예" : "아니오")}\n" +
-            $"알 클릭 {_pet.HatchClicks}/{Balance.HatchClicksRequired}";
-    }
+    private void RefreshDebug() => DebugPanel.Update(_pet, _activity.IsIdle);
 
     /// <summary>
     /// 트레이 툴팁. 60프레임마다 갱신할 이유가 없어서 2초에 한 번만 건드린다.
@@ -650,6 +640,13 @@ public partial class PetWindow : Window
     }
 
     private void AskMenu_Click(object sender, RoutedEventArgs e) => OpenAsk();
+
+    private void StatusMenu_Click(object sender, RoutedEventArgs e) => ToggleStatus();
+
+    private void QuitMenu_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void ToggleStatus() => DebugPanel.Visibility =
+        DebugPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
 
     private void CareMenu_Click(object sender, RoutedEventArgs e)
     {
