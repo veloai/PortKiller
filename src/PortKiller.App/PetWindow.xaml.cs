@@ -122,6 +122,8 @@ public partial class PetWindow : Window
         if (args.Contains("--open-notebook")) OpenNotebook();
         if (args.Contains("--open-ask")) OpenAsk();
         if (args.Contains("--open-ai-settings")) OpenAiSettings();
+        var previewAt = Array.IndexOf(args, "--model-preview");
+        if (previewAt >= 0 && previewAt + 1 < args.Length) new ModelPreviewWindow(args[previewAt + 1]).Show();
     }
 
     // ---------- 트레이 ----------
