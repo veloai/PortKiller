@@ -51,6 +51,7 @@
                               AutomationProperties.AutomationId="AskMenuItem"
                               Header="💬  물어보기"
                               Click="AskMenu_Click" />
+                    <MenuItem Header="🔐  NAC 자동 로그인 설정" Click="NacMenu_Click" />
                     <Separator />
                     <MenuItem Header="⏻  종료" Click="QuitMenu_Click" />
                 </ContextMenu>

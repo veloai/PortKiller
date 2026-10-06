@@ -689,6 +689,8 @@ public partial class PetWindow : Window
 
     private void AskMenu_Click(object sender, RoutedEventArgs e) => OpenAsk();
 
+    private void NacMenu_Click(object sender, RoutedEventArgs e) => OpenNacSettings();
+
     private void StatusMenu_Click(object sender, RoutedEventArgs e) => ToggleStatus();
 
     private void QuitMenu_Click(object sender, RoutedEventArgs e) => Close();
