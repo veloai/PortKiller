@@ -117,6 +117,15 @@ public partial class NacSettingsWindow : Window
         }
     }
 
+    private async void ProbeButton_Click(object sender, RoutedEventArgs e)
+    {
+        SaveState.Text = "확인하는 중…";
+        var status = await Task.Run(NacAutoLogin.Probe);
+        SaveState.Text = $"Genian 실행 중: {(status.Running ? "true" : "false")}"
+                         + $" · 로그인 창: {(status.LoginWindow ? "있음" : "없음")}"
+                         + (status.Processes.Count > 0 ? $" · {string.Join(", ", status.Processes)}" : string.Empty);
+    }
+
     private void DumpButton_Click(object sender, RoutedEventArgs e)
     {
         try

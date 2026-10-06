@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
@@ -118,6 +119,7 @@ public partial class PetWindow : Window
         SetUpTray();
         StartGameLoop();
         OpenNotebookIfRequested();
+        _ = ReportGenianOnStartAsync();
         _ = AutoLoginNacOnStartAsync();
     }
 
@@ -249,6 +251,39 @@ public partial class PetWindow : Window
         };
         _nacSettingsWindow.Closed += (_, _) => _nacSettingsWindow = null;
         _nacSettingsWindow.Show();
+    }
+
+    /// <summary>
+    /// 켤 때마다 Genian 이 구동 중인지 확인해 true/false 로 알린다. 자동 로그인이 켜져 있든 아니든 한다.
+    /// 말풍선은 금방 사라지므로 같은 내용을 <c>%APPDATA%\PortKillerPet\genian-status.txt</c> 에도 남긴다
+    /// (재부팅 뒤 "자동으로 떴는지, 그때 Genian 은 어땠는지"를 나중에 볼 수 있게).
+    /// </summary>
+    private async Task ReportGenianOnStartAsync()
+    {
+        var status = await Task.Run(NacAutoLogin.Probe);
+        var cred = _nac.Load();
+        var autostart = false;
+        try { autostart = AutostartManager.IsEnabled(); } catch (Exception) { /* 못 읽으면 꺼진 것으로 */ }
+
+        var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} genian={(status.Running ? "true" : "false")} " +
+                   $"processes=[{string.Join(",", status.Processes)}] loginWindow={(status.LoginWindow ? "true" : "false")} " +
+                   $"nacAutoLogin={(cred is { Enabled: true } ? "on" : cred is null ? "no-credential" : "off")} " +
+                   $"autostart={(autostart ? "true" : "false")}";
+        try
+        {
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PortKillerPet");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "genian-status.txt"), line + Environment.NewLine);
+        }
+        catch (Exception)
+        {
+            // 기록을 못 남겨도 화면 알림은 한다.
+        }
+
+        // 켜질 때 하는 다른 인사말에 덮이지 않게 잠깐 뒤에 말한다.
+        await Task.Delay(2500);
+        Say($"Genian 실행 중: {(status.Running ? "true" : "false")}" +
+            (status.LoginWindow ? " (로그인 창 보임)" : string.Empty));
     }
 
     /// <summary>

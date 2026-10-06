@@ -109,6 +109,11 @@
                                     Padding="12,6" Margin="0,0,8,0"
                                     Content="지금 시도"
                                     Click="TryNowButton_Click" />
+                            <Button x:Name="ProbeButton"
+                                    AutomationProperties.AutomationId="NacProbe"
+                                    Padding="12,6" Margin="0,0,8,0"
+                                    Content="Genian 확인"
+                                    Click="ProbeButton_Click" />
                             <Button x:Name="DumpButton"
                                     AutomationProperties.AutomationId="NacDump"
                                     Padding="12,6"

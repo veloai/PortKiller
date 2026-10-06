@@ -18,6 +18,12 @@ public enum NacLoginOutcome
 
 public sealed record NacLoginResult(NacLoginOutcome Outcome, string Message);
 
+/// <summary>지금 Genian 이 어떤 상태인지 한 번 들여다본 결과.</summary>
+/// <param name="Running">Genian 에이전트(GnAgent)가 실행 중인가.</param>
+/// <param name="Processes">실행 중인 Genian 계열(Gn…) 프로세스 이름들.</param>
+/// <param name="LoginWindow">로그인 창(아이디·비밀번호 칸과 [인증] 버튼)이 지금 떠 있는가.</param>
+public sealed record GenianStatus(bool Running, IReadOnlyList<string> Processes, bool LoginWindow);
+
 /// <summary>
 /// Genian NAC 로그인 창에 아이디·비밀번호를 채우고 [인증]을 누른다.
 ///
@@ -59,6 +65,56 @@ public static class NacAutoLogin
         }
 
         return new NacLoginResult(NacLoginOutcome.NotFound, "로그인 창이 보이지 않았어요.");
+    }
+
+    /// <summary>
+    /// Genian 이 구동 중인지 본다. 프로세스 <b>이름</b>만 보고(Gn 으로 시작하는 것), 창은 로그인 창이 있는지만 본다.
+    /// 아무것도 입력하지 않는다. "자동 로그인이 제대로 붙을 자리에 Genian 이 있는가"를 확인하는 용도다.
+    /// </summary>
+    public static GenianStatus Probe()
+    {
+        var names = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in Process.GetProcesses())
+        {
+            using (p)
+            {
+                if (p.ProcessName.StartsWith(ProcessPrefix, StringComparison.OrdinalIgnoreCase))
+                    names.Add(p.ProcessName);
+            }
+        }
+
+        var loginWindow = false;
+        if (names.Count > 0)
+        {
+            foreach (var window in GenianWindows())
+            {
+                if (LooksLikeLoginWindow(window)) { loginWindow = true; break; }
+            }
+        }
+
+        return new GenianStatus(names.Contains("GnAgent"), names.ToList(), loginWindow);
+    }
+
+    private static bool LooksLikeLoginWindow(AutomationElement window)
+    {
+        try
+        {
+            var edits = window.FindAll(TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
+            var hasPassword = false;
+            var hasUser = false;
+            foreach (AutomationElement e in edits)
+            {
+                if (e.Current.IsPassword) hasPassword = true;
+                else hasUser = true;
+            }
+
+            return hasPassword && hasUser && FindSubmit(window) is not null;
+        }
+        catch (ElementNotAvailableException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
