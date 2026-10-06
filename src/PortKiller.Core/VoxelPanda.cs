@@ -53,32 +53,84 @@ public static class VoxelPanda
 
     /// <summary>
     /// 다리 하나: 다리(위) + 발(아래, 앞으로 뻗음) + 발가락 셋. 발끝이 뭉개지지 않게 세 덩어리로 나눈다.
+    /// 네발 동물들이 같이 쓴다.
     /// </summary>
-    private static IEnumerable<VoxelBox> Leg(string part, Palette c, float x0, float x1, float z0, float z1, float forward)
+    internal static IEnumerable<VoxelBox> Leg(string part, string upper, string foot, string toes,
+        float x0, float x1, float z0, float z1)
     {
         // 발은 다리보다 앞쪽으로 0.7 더 나오고 옆으로 0.1 넓다.
-        var fx0 = forward > 0 ? x0 - 0.2f : x0;
-        var fx1 = forward > 0 ? x1 + 0.7f : x1;
+        var fx0 = x0 - 0.2f;
+        var fx1 = x1 + 0.7f;
         var fz0 = z0 - 0.1f;
         var fz1 = z1 + 0.1f;
 
-        yield return new(part, c.Leg, x0, 1.4f, z0, x1, 3.4f, z1);
-        yield return new(part, c.Dark, fx0, 0f, fz0, fx1, 1.4f, fz1);
+        yield return new(part, upper, x0, 1.4f, z0, x1, 3.4f, z1);
+        yield return new(part, foot, fx0, 0f, fz0, fx1, 1.4f, fz1);
 
         const float gap = 0.1f;
         var toe = (fz1 - fz0 - 2 * gap) / 3f;
         for (var i = 0; i < 3; i++)
         {
             var tz0 = fz0 + i * (toe + gap);
-            yield return new(part, c.Toe, fx1, 0f, tz0, fx1 + 0.6f, 0.9f, tz0 + toe);
+            yield return new(part, toes, fx1, 0f, tz0, fx1 + 0.6f, 0.9f, tz0 + toe);
         }
+    }
+
+    /// <summary>네발 동물 공통: 다리 넷. 앞 둘은 몸과 같이 기울어 서면 팔이 된다.</summary>
+    internal static IEnumerable<VoxelBox> Legs(string upper, string foot, string toes)
+    {
+        foreach (var b in Leg(LegFL, upper, foot, toes, 1.6f, 3.7f, 0.8f, 2.8f)) yield return b;
+        foreach (var b in Leg(LegFR, upper, foot, toes, 1.6f, 3.7f, -2.8f, -0.8f)) yield return b;
+        foreach (var b in Leg(LegBL, upper, foot, toes, -3.7f, -1.6f, 0.8f, 2.8f)) yield return b;
+        foreach (var b in Leg(LegBR, upper, foot, toes, -3.7f, -1.6f, -2.8f, -0.8f)) yield return b;
+    }
+
+    /// <summary>
+    /// 브리핑 소품(안경·지시봉). 네발 동물은 머리 크기·눈 위치·앞다리 위치가 같아서 그대로 쓴다.
+    /// </summary>
+    internal static IEnumerable<VoxelBox> BriefingProps()
+    {
+        const string frame = "#1B1B22";
+        return new VoxelBox[]
+        {
+            // 안경: 검은 테 둘 + 코다리 + 다리
+            new(Glasses, frame, 9.6f, 11.7f, 1.3f, 10f, 12.05f, 3.5f),
+            new(Glasses, frame, 9.6f, 9.5f, 1.3f, 10f, 9.85f, 3.5f),
+            new(Glasses, frame, 9.6f, 9.5f, 1.3f, 10f, 12.05f, 1.6f),
+            new(Glasses, frame, 9.6f, 9.5f, 3.2f, 10f, 12.05f, 3.5f),
+            new(Glasses, frame, 9.6f, 11.7f, -3.5f, 10f, 12.05f, -1.3f),
+            new(Glasses, frame, 9.6f, 9.5f, -3.5f, 10f, 9.85f, -1.3f),
+            new(Glasses, frame, 9.6f, 9.5f, -1.6f, 10f, 12.05f, -1.3f),
+            new(Glasses, frame, 9.6f, 9.5f, -3.5f, 10f, 12.05f, -3.2f),
+            new(Glasses, frame, 9.6f, 10.6f, -1.3f, 10f, 10.95f, 1.3f),
+            new(Glasses, frame, 5.5f, 11.2f, 4f, 9.6f, 11.55f, 4.3f),
+            new(Glasses, frame, 5.5f, 11.2f, -4.3f, 9.6f, 11.55f, -4f),
+
+            // 지시봉: 손에서 아래로 길게 뻗은 막대. 앞다리와 같이 회전해서 가리킨다.
+            new(Pointer, "#E9D28B", 2.35f, -6.4f, 1.5f, 2.95f, 0.6f, 2.1f),
+            new(Pointer, "#E5484D", 2.15f, -7.4f, 1.3f, 3.15f, -6.4f, 2.3f),
+        };
+    }
+
+    /// <summary>네발 동물 공통: 몸통 + 머리 바탕 + 눈(뜬/감은). 종마다 색과 눈 색만 다르다.</summary>
+    internal static IEnumerable<VoxelBox> Skeleton(string body, string belly, string eye)
+    {
+        yield return new(Body, body, -4f, 3f, -2.8f, 3f, 8f, 2.8f);
+        yield return new(Body, belly, 3f, 3.6f, -1.5f, 3.3f, 6.6f, 1.5f);
+        yield return new(Head, body, 1f, 6.5f, -4f, 9f, 13.5f, 4f);
+
+        yield return new(EyesOpen, eye, 9f, 10.2f, 1.8f, 9.5f, 11.6f, 3f);
+        yield return new(EyesOpen, eye, 9f, 10.2f, -3f, 9.5f, 11.6f, -1.8f);
+        yield return new(EyesOpen, "#FFFFFF", 9.5f, 11f, 2.1f, 9.7f, 11.6f, 2.5f);
+        yield return new(EyesOpen, "#FFFFFF", 9.5f, 11f, -2.5f, 9.7f, 11.6f, -2.1f);
+        yield return new(EyesClosed, eye, 9f, 10.6f, 1.8f, 9.4f, 11f, 3f);
+        yield return new(EyesClosed, eye, 9f, 10.6f, -3f, 9.4f, 11f, -1.8f);
     }
 
     public static IReadOnlyList<VoxelBox> Boxes(string speciesId)
     {
         var c = PaletteFor(speciesId);
         var eye = "#120B0B";
-        const string frame = "#1B1B22";
         var list = new List<VoxelBox>
         {
             // 몸통 + 가슴 흰 무늬
@@ -111,23 +163,6 @@ public static class VoxelPanda
             // 다리: 위쪽은 짙은 갈색, 발은 검고 앞으로 뻗으며, 발가락 셋이 톡 튀어나온다.
             // (예전엔 검은 통짜라 발끝이 뭉개져 보였다)
 
-            // 안경(브리핑 소품): 검은 테 둘 + 코다리 + 다리
-            new(Glasses, frame, 9.6f, 11.7f, 1.3f, 10f, 12.05f, 3.5f),
-            new(Glasses, frame, 9.6f, 9.5f, 1.3f, 10f, 9.85f, 3.5f),
-            new(Glasses, frame, 9.6f, 9.5f, 1.3f, 10f, 12.05f, 1.6f),
-            new(Glasses, frame, 9.6f, 9.5f, 3.2f, 10f, 12.05f, 3.5f),
-            new(Glasses, frame, 9.6f, 11.7f, -3.5f, 10f, 12.05f, -1.3f),
-            new(Glasses, frame, 9.6f, 9.5f, -3.5f, 10f, 9.85f, -1.3f),
-            new(Glasses, frame, 9.6f, 9.5f, -1.6f, 10f, 12.05f, -1.3f),
-            new(Glasses, frame, 9.6f, 9.5f, -3.5f, 10f, 12.05f, -3.2f),
-            new(Glasses, frame, 9.6f, 10.6f, -1.3f, 10f, 10.95f, 1.3f),
-            new(Glasses, frame, 5.5f, 11.2f, 4f, 9.6f, 11.55f, 4.3f),
-            new(Glasses, frame, 5.5f, 11.2f, -4.3f, 9.6f, 11.55f, -4f),
-
-            // 지시봉(브리핑 소품): 손에서 아래로 길게 뻗은 막대. 앞다리와 같이 회전해서 가리킨다.
-            new(Pointer, "#E9D28B", 2.35f, -6.4f, 1.5f, 2.95f, 0.6f, 2.1f),
-            new(Pointer, "#E5484D", 2.15f, -7.4f, 1.3f, 3.15f, -6.4f, 2.3f),
-
             // 꼬리: 굵은 줄무늬가 위로 말려 올라간다
             new(Tail, c.Rust, -7f, 4.3f, -1.6f, -3.8f, 7.5f, 1.6f),
             new(Tail, c.Ring, -9.6f, 5.2f, -1.8f, -7f, 8.6f, 1.8f),
@@ -136,14 +171,8 @@ public static class VoxelPanda
             new(Tail, c.Tip, -15f, 8.8f, -1.5f, -13.6f, 12f, 1.5f),
         };
 
-        foreach (var leg in new[]
-        {
-            Leg(VoxelPanda.LegFL, c, 1.6f, 3.7f, 0.8f, 2.8f, forward: 1f),
-            Leg(VoxelPanda.LegFR, c, 1.6f, 3.7f, -2.8f, -0.8f, forward: 1f),
-            Leg(VoxelPanda.LegBL, c, -3.7f, -1.6f, 0.8f, 2.8f, forward: 1f),
-            Leg(VoxelPanda.LegBR, c, -3.7f, -1.6f, -2.8f, -0.8f, forward: 1f),
-        })
-            list.AddRange(leg);
+        list.AddRange(Legs(c.Leg, c.Dark, c.Toe));
+        list.AddRange(BriefingProps());
 
         return list;
     }
