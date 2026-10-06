@@ -30,7 +30,7 @@ public partial class PetWindow : Window
     /// 로그오프하거나 튕기는 순간 그날 키운 것이 통째로 사라진다. 쓰기는 임시 파일에 쓰고
     /// 이름을 바꾸는 방식이라(JsonSaveStore) 중간에 끊겨도 기존 파일이 깨지지 않는다.
     /// </summary>
-    private static readonly TimeSpan SaveInterval = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan SaveInterval = TimeSpan.FromSeconds(15);
 
     private readonly ISaveStore _store = new JsonSaveStore(ArgValue("--save-dir"));
     private readonly ActivityMonitor _activity = new();
@@ -104,6 +104,9 @@ public partial class PetWindow : Window
 
         _motion = new PetMotion(PetBody.Width, PetBody.Height, _rng);
         _motion.PlaceOnGround(DefaultX(), Bounds());
+
+        // 윈도우가 로그오프·재시작·종료될 때 창 닫기 절차가 항상 오지는 않는다. 이 신호에서 먼저 저장해 둔다.
+        Application.Current.SessionEnding += (_, _) => SaveNow();
 
         DebugPanel.CloseRequested += () => SetBriefing(false);
         DebugPanel.MouseMove += BriefingCard_MouseMove;
@@ -593,6 +596,24 @@ public partial class PetWindow : Window
     /// 비정상 종료에 전부 잃는다. 실패해도 화면은 계속 돌아간다 —
     /// 저장 한 번 실패로 펫이 죽으면 그게 더 큰 손해다.
     /// </summary>
+    /// <summary>
+    /// 지금 바로 저장한다. 똥을 치우거나 밥을 주는 것처럼 사용자가 한 행동은 이 함수로 즉시 남긴다.
+    /// 주기 저장에만 맡기면, 치우고 곧바로 강제 종료·재부팅될 때 그 행동이 통째로 사라져서
+    /// 다음에 켜면 똥이 그대로 나온다(실제로 그랬다).
+    /// </summary>
+    private void SaveNow()
+    {
+        try
+        {
+            _store.Save(BuildSave());
+            _lastSave = DateTimeOffset.Now;
+        }
+        catch (Exception)
+        {
+            // 디스크 문제로 실패해도 화면은 계속 돈다. 다음 주기에 다시 해 본다.
+        }
+    }
+
     private void SaveIfDue(DateTimeOffset now)
     {
         if (now - _lastSave < SaveInterval) return;
@@ -785,6 +806,7 @@ public partial class PetWindow : Window
         }
 
         SyncPoops();
+        SaveNow();
         Say(CareText.For(action, result, _rng));
         RefreshFace();
         RefreshDebug();
@@ -850,6 +872,7 @@ public partial class PetWindow : Window
 
         PoopLayer.Children.Remove(poop);
         _poops.Remove(poop);
+        SaveNow();
         Say(CareText.For(CareAction.Clean, CareResult.Done, _rng));
         e.Handled = true;
     }
