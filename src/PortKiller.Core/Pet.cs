@@ -15,11 +15,22 @@ public sealed class Pet
     /// <param name="rng">
     /// 응아 간격처럼 무작위가 섞이는 곳에 쓴다. 테스트에서는 씨앗을 고정해 넣는다.
     /// </param>
-    public Pet(DateTimeOffset? createdAt = null, Random? rng = null)
+    /// <param name="kind">키우는 동물의 종 id. 시험과 옛 코드는 생략해서 레서판다가 된다.</param>
+    public Pet(DateTimeOffset? createdAt = null, Random? rng = null, string kind = PetKinds.RedPanda)
     {
         EggCreatedAt = createdAt ?? DateTimeOffset.Now;
         _rng = rng ?? Random.Shared;
+        Kind = kind;
     }
+
+    /// <summary>
+    /// 종 id(<see cref="PetKinds"/>). 빈 문자열이면 아직 안 고른 것이다.
+    /// <see cref="SpeciesId"/> 는 이것과 다르다 - 같은 종 안에서 "언제 깨어났나"로 갈리는 색 변형이다.
+    /// </summary>
+    public string Kind { get; private set; }
+
+    /// <summary>종 정보. 모르는 id 는 레서판다로 본다.</summary>
+    public PetKind KindInfo => PetKinds.Get(Kind);
 
     public PetStats Stats { get; } = new();
     public LifeStage Stage { get; private set; } = LifeStage.Egg;
@@ -316,6 +327,7 @@ public sealed class Pet
 
     public SaveData ToSave(DateTimeOffset now) => new()
     {
+        Kind = Kind,
         SpeciesId = SpeciesId,
         Stage = Stage,
         EvolutionTier = EvolutionTier,
@@ -340,6 +352,8 @@ public sealed class Pet
     {
         var pet = new Pet
         {
+            // 종이 생기기 전(버전 1)의 저장은 전부 레서판다였다. 버전 2 의 빈 값은 "아직 안 고름"이다.
+            Kind = d.Kind == "" && d.Version < 2 ? PetKinds.RedPanda : d.Kind,
             SpeciesId = d.SpeciesId,
             Stage = d.Stage,
             EvolutionTier = d.EvolutionTier,

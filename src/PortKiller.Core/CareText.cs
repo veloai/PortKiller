@@ -39,9 +39,31 @@ public static class CareText
     public const string EggGreeting = "알이 도착했어. 클릭해서 깨워줘!";
     public const string Hatched = "안녕! 나 이제 나왔어";
 
+    /// <summary>처음 만났을 때 한마디. 알형은 알이 왔다고, 새끼형은 바구니에 잠든 새끼가 있다고 한다.</summary>
+    public static string NewbornGreeting(PetKind kind) => kind.Birth == BirthKind.Egg
+        ? EggGreeting
+        : $"바구니에 {kind.Name} 새끼가 잠들어 있어. 쓰다듬어서 깨워줘!";
+
+    /// <summary>깨어났을 때 한마디.</summary>
+    public static string Born(PetKind kind) => kind.Birth == BirthKind.Egg
+        ? Hatched
+        : "으음… 깼다! 안녕!";
+
+    /// <summary>아직 못 깬 새끼에게 돌보기를 했을 때. 알형·새끼형이 다른 말을 한다.</summary>
+    public static string StillNewborn(PetKind kind) => kind.Birth == BirthKind.Egg
+        ? "아직 알이라서 못 해…"
+        : "쿨… 아직 자고 있어서 못 해…";
+
+    /// <summary>트레이 툴팁처럼 짧은 안내.</summary>
+    public static string NewbornHint(PetKind kind) => kind.Birth == BirthKind.Egg
+        ? "아직 알이야. 클릭해서 깨워줘!"
+        : "아직 자고 있어. 쓰다듬어서 깨워줘!";
+
     /// <summary>돌보기 결과에 맞는 한 마디. 어떤 조합이 와도 빈 문자열을 돌려주지 않는다.</summary>
-    public static string For(CareAction action, CareResult result, Random? rng = null)
+    public static string For(CareAction action, CareResult result, Random? rng = null, PetKind? kind = null)
     {
+        if (result == CareResult.StillAnEgg && kind is not null) return StillNewborn(kind);
+
         if (result != CareResult.Done)
             return Refusal.TryGetValue(result, out var refusal) ? refusal : "지금은 안 되겠어…";
 
@@ -49,9 +71,9 @@ public static class CareText
         return lines[(rng ?? Random.Shared).Next(lines.Length)];
     }
 
-    public static string Greeting(LifeStage stage, Random? rng = null)
+    public static string Greeting(LifeStage stage, Random? rng = null, PetKind? kind = null)
         => stage == LifeStage.Egg
-            ? EggGreeting
+            ? (kind is null ? EggGreeting : NewbornGreeting(kind))
             : GreetingLines[(rng ?? Random.Shared).Next(GreetingLines.Length)];
 
     // ---------- AI ----------

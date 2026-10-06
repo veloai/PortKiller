@@ -3,7 +3,15 @@ namespace PortKiller.Core;
 /// <summary>디스크에 남는 전부. 이 파일을 지우면 흔적이 0이 된다.</summary>
 public sealed class SaveData
 {
-    public int Version { get; set; } = 1;
+    /// <summary>
+    /// 2: 종(<see cref="Kind"/>)이 생겼다. 1 이하(옛 저장)에는 종이 없고, 그때는 모두 레서판다였다.
+    /// </summary>
+    public int Version { get; set; } = 2;
+
+    /// <summary>
+    /// 키우는 동물의 종 id(<see cref="PetKinds"/>). 빈 문자열은 "아직 안 골랐다"(새 저장)라서 선택 창을 띄운다.
+    /// </summary>
+    public string Kind { get; set; } = "";
 
     public string SpeciesId { get; set; } = "";
     public LifeStage Stage { get; set; } = LifeStage.Egg;
