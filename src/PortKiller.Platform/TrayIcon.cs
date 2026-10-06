@@ -48,7 +48,7 @@ public sealed class TrayIcon : IDisposable
     /// <summary>NAC 자동 로그인 설정 창을 열어 달라는 뜻.</summary>
     public event Action? NacSettingsRequested;
 
-    /// <summary>펫을 알부터 다시 키우겠다는 뜻. 되돌릴 수 없으므로 확인은 받는 쪽에서 한다.</summary>
+    /// <summary>새 펫(종을 골라서)을 맞이하겠다는 뜻. 되돌릴 수 없으므로 확인은 받는 쪽에서 한다.</summary>
     public event Action? ResetRequested;
 
     /// <summary>항상 위 토글. 인자는 켠 뒤의 상태다.</summary>
@@ -106,7 +106,7 @@ public sealed class TrayIcon : IDisposable
         var nacItem = new ToolStripMenuItem("🔐 NAC 자동 로그인");
         nacItem.Click += (_, _) => NacSettingsRequested?.Invoke();
 
-        var resetItem = new ToolStripMenuItem("🥚 처음부터 다시 키우기");
+        var resetItem = new ToolStripMenuItem("🧺 새 펫 맞이하기");
         resetItem.Click += (_, _) => ResetRequested?.Invoke();
 
         var quitItem = new ToolStripMenuItem("종료");

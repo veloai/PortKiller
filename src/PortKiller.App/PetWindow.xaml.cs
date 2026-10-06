@@ -42,6 +42,15 @@ public partial class PetWindow : Window
 
     /// <summary>알 그림. 알일 때만 보인다.</summary>
     private readonly VoxelPropView _eggView = new(28, VoxelProps.EggHeight) { Visibility = Visibility.Collapsed };
+
+    /// <summary>바구니 속 잠든 새끼. 새끼형 종이 갓 태어났을 때만 보인다.</summary>
+    private readonly VoxelPropView _cubView = new(20, VoxelProps.CubHeight) { Visibility = Visibility.Collapsed };
+
+    /// <summary>두 발 동물(병아리)의 모델. 네발 동물은 XAML 의 <c>Quad</c> 가 맡는다.</summary>
+    private readonly BipedView _biped = new() { Visibility = Visibility.Collapsed };
+
+    /// <summary>종·상태별 알/새끼 모델 캐시. 같은 설계도 객체를 다시 주어야 화면이 새로 만들지 않는다.</summary>
+    private readonly Dictionary<string, IReadOnlyList<VoxelBox>> _birthModels = new();
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
 
     private readonly ApiKeyStore _keys = new();
@@ -81,6 +90,8 @@ public partial class PetWindow : Window
     {
         InitializeComponent();
         BodyLayers.Children.Add(_eggView);
+        BodyLayers.Children.Add(_cubView);
+        BodyLayers.Children.Add(_biped);
 
         Loaded += OnLoaded;
         SourceInitialized += OnSourceInitialized;
@@ -112,7 +123,7 @@ public partial class PetWindow : Window
         DebugPanel.MouseMove += BriefingCard_MouseMove;
         DebugPanel.MouseLeave += (_, _) =>
         {
-            Panda.PointAt(null);
+            ActiveView.PointAt(null);
             DebugPanel.ClearPointer();
         };
 
@@ -120,6 +131,7 @@ public partial class PetWindow : Window
 
         LoadPet();
         SetUpTray();
+        EnsureKindChosen();
         StartGameLoop();
         OpenNotebookIfRequested();
         _ = ReportGenianOnStartAsync();
@@ -140,6 +152,21 @@ public partial class PetWindow : Window
         if (args.Contains("--open-ask")) OpenAsk();
         if (args.Contains("--open-ai-settings")) OpenAiSettings();
         if (args.Contains("--briefing")) SetBriefing(true);
+
+        // 검사용: 모든 종의 모습을 PNG 한 장으로 그려 내고 끈다(화면이 잠겨 있어도 된다).
+        var sheetAt = Array.IndexOf(args, "--render-sheet");
+        if (sheetAt >= 0 && sheetAt + 1 < args.Length)
+        {
+            ContactSheet.Render(args[sheetAt + 1]);
+            Application.Current.Shutdown();
+        }
+
+        var pickerAt = Array.IndexOf(args, "--render-picker");
+        if (pickerAt >= 0 && pickerAt + 1 < args.Length)
+        {
+            ContactSheet.RenderPicker(args[pickerAt + 1]);
+            Application.Current.Shutdown();
+        }
         var previewAt = Array.IndexOf(args, "--model-preview");
         if (previewAt >= 0 && previewAt + 1 < args.Length) new ModelPreviewWindow(args[previewAt + 1]).Show();
     }
@@ -341,27 +368,55 @@ public partial class PetWindow : Window
         _notebookWindow.Show();
     }
 
+    /// <summary>새 펫 맞이하기: 확인을 받고, 종을 고르게 한 뒤, 갓 태어난 단계부터 다시 시작한다.</summary>
     private void ConfirmAndReset()
     {
         var answer = MessageBox.Show(
-            "정말 처음부터 다시 키울까요?\n지금 펫과는 영영 헤어지게 돼요…",
-            "처음부터 다시 키우기",
+            "정말 새 펫을 맞이할까요?\n지금 펫과는 영영 헤어지게 돼요…",
+            "새 펫 맞이하기",
             MessageBoxButton.OKCancel,
             MessageBoxImage.Warning);
         if (answer != MessageBoxResult.OK) return;
 
-        _pet = NewPet();
+        var kind = PickKind(firstTime: false);
+        if (kind is null) return;   // 고르지 않고 닫았으면 아무것도 바꾸지 않는다
+        StartNewPet(kind);
+    }
+
+    /// <summary>종 고르는 창을 띄우고 고른 종 id 를 돌려준다. 고르지 않고 닫으면 null.</summary>
+    private string? PickKind(bool firstTime)
+    {
+        var dialog = new SpeciesPickerWindow(firstTime);
+        return dialog.ShowDialog() == true ? dialog.Chosen : null;
+    }
+
+    /// <summary>
+    /// 저장에 종이 없으면(새 설치) 고르게 한다. 고르지 않고 닫아도 앱이 멈추지 않게 레서판다로 시작한다.
+    /// 옛 저장(종이 생기기 전)은 불러올 때 이미 레서판다가 되어 있어서 여기에 걸리지 않는다.
+    /// </summary>
+    private void EnsureKindChosen()
+    {
+        if (PetKinds.IsChosen(_pet.Kind)) return;
+        if (Environment.GetCommandLineArgs().Any(a => a.StartsWith("--render-"))) return;
+
+        StartNewPet(PickKind(firstTime: true) ?? PetKinds.RedPanda);
+    }
+
+    private void StartNewPet(string kind)
+    {
+        SetBriefing(false);
+        _pet = NewPet(kind);
         PoopLayer.Children.Clear();
         _poops.Clear();
         _motion.PlaceOnGround(DefaultX(), Bounds());
 
-        _store.Save(BuildSave());
+        SaveNow();
         RefreshFace();
-        Say(CareText.EggGreeting);
+        Say(CareText.NewbornGreeting(_pet.KindInfo));
     }
 
-    /// <summary>알부터 시작하는 새 펫.</summary>
-    private Pet NewPet() => Wire(new Pet(DateTimeOffset.Now, _rng));
+    /// <summary>갓 태어난 단계부터 시작하는 새 펫. 종은 고른 것을 쓴다.</summary>
+    private Pet NewPet(string kind = PetKinds.RedPanda) => Wire(new Pet(DateTimeOffset.Now, _rng, kind));
 
     /// <summary>
     /// 펫이 알리는 일들을 화면에 잇는다.
@@ -372,7 +427,7 @@ public partial class PetWindow : Window
         pet.StageChanged += stage => Dispatcher.Invoke(() =>
         {
             RefreshFace();
-            Say(CareText.StageUp(stage));
+            Say(CareText.StageUp(stage, pet.KindInfo));
         });
         pet.Evolved += tier => Dispatcher.Invoke(() => Say(CareText.Evolved(tier)));
         pet.Pooped += _ => Dispatcher.Invoke(SyncPoops);
@@ -461,7 +516,7 @@ public partial class PetWindow : Window
 
         SyncPoops();
         RefreshFace();
-        Say(CareText.Greeting(_pet.Stage, _rng));
+        Say(CareText.Greeting(_pet.Stage, _rng, _pet.KindInfo));
     }
 
     private void StartGameLoop()
@@ -511,29 +566,60 @@ public partial class PetWindow : Window
             : Transform.Identity;
     }
 
+    /// <summary>지금 종의 몸 틀에 맞는 화면 부품(네발 / 두 발).</summary>
+    private AnimalViewBase ActiveView => _pet.KindInfo.Rig == RigKind.Biped ? _biped : Quad;
+
     /// <summary>
-    /// 지금 화면에 보여야 할 모습으로 맞춘다. 알이면 복셀 알, 아니면 복셀 레서판다.
-    /// 둘 다 코드로 조립한 모델이라 그림 파일이 필요 없고 항상 그려진다.
+    /// 지금 화면에 보여야 할 모습으로 맞춘다.
+    /// 갓 태어난 단계는 태어나는 방식대로(알형은 알, 새끼형은 바구니 속 새끼), 그다음은 종의 몸 틀대로 그린다.
+    /// 모두 코드로 조립한 모델이라 그림 파일이 필요 없다.
     /// 게임 루프에서 초당 60번 불리므로 모양(상자)은 바뀔 때만 다시 만든다.
     /// </summary>
     private void RefreshFace()
     {
         ClearBodyCircle();
+        var kind = _pet.KindInfo;
 
         if (_pet.Stage == LifeStage.Egg)
         {
-            Panda.Visibility = Visibility.Collapsed;
-            _eggView.Visibility = Visibility.Visible;
-            _eggView.Show(_pet.HatchClicks >= Balance.HatchClicksRequired - 5 ? EggCracked : EggPlain);
-            _eggView.Tilt = EggTilt();
+            Quad.Visibility = Visibility.Collapsed;
+            _biped.Visibility = Visibility.Collapsed;
+            var nearly = _pet.HatchClicks >= Balance.HatchClicksRequired - 5;
+
+            if (kind.Birth == BirthKind.Egg)
+            {
+                _cubView.Visibility = Visibility.Collapsed;
+                _eggView.Visibility = Visibility.Visible;
+                _eggView.Show(BirthModel($"egg/{kind.Id}/{nearly}", () => VoxelProps.Egg(nearly, VoxelAnimals.EggSpot(kind.Id))));
+                _eggView.Tilt = NewbornTilt(14);
+            }
+            else
+            {
+                _eggView.Visibility = Visibility.Collapsed;
+                _cubView.Visibility = Visibility.Visible;
+                _cubView.Show(BirthModel($"cub/{kind.Id}/{nearly}", () => VoxelProps.Cub(kind.Id, nearly)));
+                _cubView.Tilt = NewbornTilt(7);
+            }
+
             return;
         }
 
         _eggView.Visibility = Visibility.Collapsed;
+        _cubView.Visibility = Visibility.Collapsed;
+
+        var view = ActiveView;
+        (view == Quad ? (UIElement)_biped : Quad).Visibility = Visibility.Collapsed;
+
         var pose = CurrentPose();
-        Panda.Configure(_pet.SpeciesId, _pet.Stage);
-        Panda.Animate(pose, pose is PetPose.Walk1 or PetPose.Walk2, _clock.Elapsed.TotalSeconds);
-        Panda.Visibility = Visibility.Visible;
+        view.Configure(kind.Id, _pet.SpeciesId, _pet.Stage);
+        view.Animate(pose, pose is PetPose.Walk1 or PetPose.Walk2, _clock.Elapsed.TotalSeconds);
+        view.Visibility = Visibility.Visible;
+    }
+
+    private IReadOnlyList<VoxelBox> BirthModel(string key, Func<IReadOnlyList<VoxelBox>> make)
+    {
+        if (!_birthModels.TryGetValue(key, out var model)) _birthModels[key] = model = make();
+        return model;
     }
 
     /// <summary>그림·3D 가 있으면 초록 동그라미는 치운다. 배경을 null 이 아니라 Transparent 로 두는 이유는 위 주석 참고.</summary>
@@ -545,14 +631,14 @@ public partial class PetWindow : Window
     }
 
     /// <summary>
-    /// 알이 기우는 각도. 클릭 직후에는 좌우로 크게 흔들리고, 평소에는 아주 조금 까딱인다.
+    /// 알·바구니가 기우는 각도. 클릭 직후에는 좌우로 크게 흔들리고(<paramref name="swing"/> 도), 평소에는 아주 조금 까딱인다.
     /// 흔들림 방향은 <see cref="Pet.HatchClicks"/> 의 홀짝으로 가른다 - 따로 타이머를 두면
     /// 클릭과 어긋나 "눌렀는데 반응이 없다"가 된다.
     /// </summary>
-    private double EggTilt()
+    private double NewbornTilt(double swing)
     {
-        if (_reactionUntil > DateTimeOffset.Now) return _pet.HatchClicks % 2 == 0 ? 14 : -14;
-        return Math.Sin(_clock.Elapsed.TotalSeconds * 1.6) * 2;
+        if (_reactionUntil > DateTimeOffset.Now) return _pet.HatchClicks % 2 == 0 ? swing : -swing;
+        return Math.Sin(_clock.Elapsed.TotalSeconds * 1.6) * (swing / 7);
     }
 
     /// <summary>
@@ -636,7 +722,7 @@ public partial class PetWindow : Window
         _lastTooltipUpdate = now;
 
         _tray.SetTooltip(_pet.Stage == LifeStage.Egg
-            ? "아직 알이야. 클릭해서 깨워줘!"
+            ? CareText.NewbornHint(_pet.KindInfo)
             : $"배부름 {_pet.Stats.Hunger:F0} · 행복 {_pet.Stats.Happiness:F0} · 응아 {_pet.PoopsOnGround}");
     }
 
@@ -712,6 +798,8 @@ public partial class PetWindow : Window
 
     private void NacMenu_Click(object sender, RoutedEventArgs e) => OpenNacSettings();
 
+    private void NewPetMenu_Click(object sender, RoutedEventArgs e) => ConfirmAndReset();
+
     private void StatusMenu_Click(object sender, RoutedEventArgs e) => ToggleStatus();
 
     private void QuitMenu_Click(object sender, RoutedEventArgs e) => Close();
@@ -730,11 +818,11 @@ public partial class PetWindow : Window
     {
         if (on == _briefing) return;
         _briefing = on;
-        Panda.SetBriefing(on);
+        ActiveView.SetBriefing(on);
 
         if (!on)
         {
-            Panda.PointAt(null);
+            ActiveView.PointAt(null);
             DebugPanel.Visibility = Visibility.Collapsed;
             return;
         }
@@ -785,7 +873,7 @@ public partial class PetWindow : Window
         var onCard = e.GetPosition(DebugPanel);
         var t = DebugPanel.ActualHeight > 0 ? Math.Clamp(onCard.Y / DebugPanel.ActualHeight, 0, 1) : 0.5;
 
-        Panda.PointAt(PointTopAngle + (PointBottomAngle - PointTopAngle) * t);
+        ActiveView.PointAt(PointTopAngle + (PointBottomAngle - PointTopAngle) * t);
         DebugPanel.Pointer(onCard);
     }
 
@@ -807,7 +895,7 @@ public partial class PetWindow : Window
 
         SyncPoops();
         SaveNow();
-        Say(CareText.For(action, result, _rng));
+        Say(CareText.For(action, result, _rng, _pet.KindInfo));
         RefreshFace();
         RefreshDebug();
     }
@@ -927,7 +1015,7 @@ public partial class PetWindow : Window
         {
             var result = _pet.ApplyCare(CareAction.Pet, now);
             if (result == CareResult.Done) React(PetPose.Happy);
-            Say(CareText.For(CareAction.Pet, result, _rng));
+            Say(CareText.For(CareAction.Pet, result, _rng, _pet.KindInfo));
         }
 
         RefreshFace();

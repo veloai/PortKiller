@@ -21,8 +21,17 @@ Workspace Utilizer & Open Development Tools
   - 질문과 답은 저장하지 않는다. 나가는 통신은 이것 하나뿐이다
   - 자세히: [docs/verification/ai-ask.md](docs/verification/ai-ask.md)
 
-캐릭터: **3D 도트(복셀) 레서판다**. 알·응아·펫 모두 코드로 조립한 큐브 모델이라 그림 파일이 필요 없다
-(`Core/VoxelPanda.cs`, `Core/VoxelProps.cs` 가 설계도, `App/PandaView.cs` 가 그리고 움직인다).
+캐릭터: **3D 도트(복셀) 동물 4종** - 레서판다·고양이·여우(새끼로 태어남, 네발) + 병아리(알에서 태어남, 두 발).
+처음 실행하거나 "🧺 새 펫 맞이하기"를 누르면 종을 직접 고르는 창이 뜬다. 알·새끼 바구니·응아·동물 모두
+코드로 조립한 큐브 모델이라 그림 파일이 필요 없다.
+
+| 종 | 태어나는 방식 | 몸 틀 |
+|---|---|---|
+| 레서판다 / 고양이 / 여우 | 🧺 바구니에서 자는 새끼를 쓰다듬어 깨운다 | 네발 (`VoxelPanda`, `VoxelQuadrupeds`) |
+| 병아리 | 🥚 알을 쓰다듬어 깬다 | 두 발 (`VoxelChick`) |
+
+새 종은 `PetKinds`(Core/PetKind.cs)에 한 줄을 더하고 `VoxelAnimals` 에 모델을 연결하면 된다.
+검사용: `PortKillerPet.exe --render-sheet 파일.png`(모든 종·자세를 한 장으로), `--render-picker 파일.png`(종 고르는 창).
 예전 2D 다람쥐 그림(`assets/sprites`)은 더 이상 쓰이지 않는다(기록용으로 남김).
 
 ### 구조

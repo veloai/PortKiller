@@ -111,6 +111,10 @@ public static class CareText
     public static string Evolved(int tier)
         => tier >= 2 ? "✨✨ 최종 진화! ✨✨" : "✨ 진화했다! ✨";
 
+    /// <summary>단계가 오를 때 한마디. 깨어날 때(아기가 될 때)는 종의 태어난 방식에 맞게 말한다.</summary>
+    public static string StageUp(LifeStage stage, PetKind kind)
+        => stage == LifeStage.Baby ? Born(kind) : StageUp(stage);
+
     public static string StageUp(LifeStage stage) => stage switch
     {
         LifeStage.Baby => "삐약!",

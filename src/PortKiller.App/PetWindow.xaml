@@ -30,7 +30,7 @@
                 MouseLeftButtonUp="PetBody_MouseLeftButtonUp">
             <!-- 알이면 알(복셀), 아니면 레서판다(복셀). 알 그림은 코드가 BodyLayers 에 넣는다. -->
             <Grid x:Name="BodyLayers">
-                <local:PandaView x:Name="Panda" Visibility="Collapsed" />
+                <local:QuadrupedView x:Name="Quad" Visibility="Collapsed" />
             </Grid>
 
             <!-- 돌보기 메뉴. 펫을 우클릭하면 열린다. -->
@@ -52,6 +52,7 @@
                               Header="💬  물어보기"
                               Click="AskMenu_Click" />
                     <MenuItem Header="🔐  NAC 자동 로그인 설정" Click="NacMenu_Click" />
+                    <MenuItem Header="🧺  새 펫 맞이하기" Click="NewPetMenu_Click" />
                     <Separator />
                     <MenuItem Header="⏻  종료" Click="QuitMenu_Click" />
                 </ContextMenu>

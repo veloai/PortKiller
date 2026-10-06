@@ -129,7 +129,9 @@ public partial class StatusCard : UserControl
     {
         _pet = pet;
         TitleText.Text = TitleFor(pet);
-        SubText.Text = pet.Stage == LifeStage.Egg ? "곧 태어날 것 같아요" : SpeciesName(pet.SpeciesId);
+        SubText.Text = pet.Stage == LifeStage.Egg
+            ? (pet.KindInfo.Birth == BirthKind.Egg ? "곧 태어날 것 같아요" : "새근새근 자고 있어요")
+            : SpeciesName(pet);
         ApplyMood(pet, userAway);
 
         var eggStage = pet.Stage == LifeStage.Egg;
@@ -156,7 +158,7 @@ public partial class StatusCard : UserControl
         switch (pet.Stage)
         {
             case LifeStage.Egg:
-                GrowthLabel.Text = "부화까지 (쓰다듬기)";
+                GrowthLabel.Text = pet.KindInfo.Birth == BirthKind.Egg ? "부화까지 (쓰다듬기)" : "깨어나기까지 (쓰다듬기)";
                 GrowthValue.Text = $"{pet.HatchClicks}/{Balance.HatchClicksRequired}";
                 ratio = (double)pet.HatchClicks / Balance.HatchClicksRequired;
                 break;
@@ -194,7 +196,7 @@ public partial class StatusCard : UserControl
     {
         (string text, string color) = pet switch
         {
-            { Stage: LifeStage.Egg } => ("🥚 알", "#FF6B7399"),
+            { Stage: LifeStage.Egg } => (pet.KindInfo.Birth == BirthKind.Egg ? "🥚 알" : "🧺 새끼", "#FF6B7399"),
             { IsAsleep: true } => ("😴 자는 중", "#FF5B6BC0"),
             { IsSick: true } => ("🤒 아파요", "#FFC0505A"),
             { IsSulking: true } => ("😤 삐졌어요", "#FFB86B3A"),
@@ -210,7 +212,7 @@ public partial class StatusCard : UserControl
     {
         var stage = pet.Stage switch
         {
-            LifeStage.Egg => "알",
+            LifeStage.Egg => pet.KindInfo.NewbornNoun,
             LifeStage.Baby => "아기",
             LifeStage.Child => "소년기",
             _ => "성체",
@@ -220,13 +222,9 @@ public partial class StatusCard : UserControl
             : stage;
     }
 
-    private static string SpeciesName(string id) => id switch
-    {
-        "" => "-",
-        "day" => "낮의 레서판다",
-        "evening" => "저녁의 레서판다",
-        _ => id,
-    };
+    /// <summary>"낮의 고양이" 처럼 색 변형(언제 깨어났나)과 종 이름을 합친 말.</summary>
+    private static string SpeciesName(Pet pet)
+        => $"{(pet.SpeciesId == "evening" ? "저녁의" : "낮의")} {pet.KindInfo.Name}";
 
     private static Brush Hex(string hex)
     {

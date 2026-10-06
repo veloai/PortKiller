@@ -7,23 +7,27 @@ using PortKiller.Core;
 namespace PortKiller.App;
 
 /// <summary>
-/// 3D 도트 레서판다를 그리고 움직인다. 게임 규칙은 모르고 "지금 어떤 포즈인가"만 받는다.
+/// 네발 동물(레서판다·고양이·여우)을 3D 도트로 그리고 움직인다. 게임 규칙은 모르고 "지금 어떤 포즈인가"만 받는다.
 ///
 /// <para>부품마다 <see cref="Model3DGroup"/> 을 하나씩 두고, 매 프레임 회전·이동 값만 바꾼다.
 /// 모양(상자)은 한 번만 만든다 — 초당 60번 불리므로 새로 만들 이유가 없다.</para>
 /// </summary>
-public sealed class PandaView : Viewport3D
+public sealed class QuadrupedView : AnimalViewBase
 {
     /// <summary>화면에 잡히는 세로·가로 길이(복셀 단위). 몸 크기(-15~10.5)와 회전 여유를 합친 값이다.</summary>
     private const double ViewUnits = 30;
 
-    private const double CenterX = (VoxelPanda.MinX + VoxelPanda.MaxX) / 2;
+    /// <summary>모델 가로 범위의 한가운데. 종마다 꼬리 길이가 달라 모델을 만들 때 다시 계산한다.</summary>
+    private double _centerX = (VoxelPanda.MinX + VoxelPanda.MaxX) / 2;
+
+    /// <summary>지금 그리고 있는 모델의 상자들.</summary>
+    private IReadOnlyList<VoxelBox> _boxes = Array.Empty<VoxelBox>();
 
     private readonly Dictionary<string, Model3DGroup> _parts = new();
     private readonly Dictionary<string, AxisAngleRotation3D> _rot = new();
     private readonly Dictionary<string, TranslateTransform3D> _move = new();
-    private readonly ScaleTransform3D _stageScale = new(1, 1, 1, CenterX, 0, 0);
-    private readonly ScaleTransform3D _squash = new(1, 1, 1, CenterX, 0, 0);
+    private readonly ScaleTransform3D _stageScale = new(1, 1, 1, 0, 0, 0);
+    private readonly ScaleTransform3D _squash = new(1, 1, 1, 0, 0, 0);
     private readonly TranslateTransform3D _rigMove = new();
     private readonly Model3DGroup _eyesOpen = new();
     private readonly Model3DGroup _eyesClosed = new();
@@ -46,28 +50,35 @@ public sealed class PandaView : Viewport3D
     private bool _glassesOn;
     private bool _pointerOn;
 
-    public PandaView()
+    public QuadrupedView()
     {
         // 몸이 화면 한가운데 오도록 직교 카메라(원근 없음 - 도트 느낌이 산다).
-        Camera = new OrthographicCamera(new Point3D(CenterX, 13.5, 40), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), ViewUnits);
+        Camera = new OrthographicCamera(new Point3D(_centerX, 13.5, 40), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), ViewUnits);
         ClipToBounds = true;
         IsHitTestVisible = false;   // 눌림은 바깥 PetBody 가 받는다
         Children.Add(_visual);
     }
 
-    /// <summary>종·성장 단계가 바뀌었을 때만 다시 만든다.</summary>
-    public void Configure(string speciesId, LifeStage stage)
+    /// <summary>종·색 변형·성장 단계가 바뀌었을 때만 다시 만든다.</summary>
+    public override void Configure(string kindId, string speciesId, LifeStage stage)
     {
-        var key = speciesId == "evening" ? "evening" : "day";
-        if (_builtFor != key) Build(key);
+        var variant = VoxelAnimals.VariantOf(speciesId);
+        var key = kindId + "/" + variant;
+        if (_builtFor != key) Build(kindId, variant);
 
         var s = stage switch { LifeStage.Baby => 0.62, LifeStage.Child => 0.82, _ => 1.0 };
         _stageScale.ScaleX = _stageScale.ScaleY = _stageScale.ScaleZ = s;
     }
 
-    private void Build(string species)
+    private void Build(string kindId, string species)
     {
-        _builtFor = species;
+        _builtFor = kindId + "/" + species;
+        _boxes = VoxelAnimals.Boxes(kindId, species);
+        var (minX, maxX, _) = VoxelAnimals.Bounds(kindId);
+        _centerX = (minX + maxX) / 2;
+        _stageScale.CenterX = _squash.CenterX = _centerX;
+        Camera = new OrthographicCamera(new Point3D(_centerX, 13.5, 40), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), ViewUnits);
+
         _parts.Clear();
         _rot.Clear();
         _move.Clear();
@@ -104,7 +115,7 @@ public sealed class PandaView : Viewport3D
         all.Children.Add(_stageScale);
         all.Children.Add(_squash);
         all.Children.Add(_rigMove);
-        all.Children.Add(VoxelMeshBuilder.ThreeQuarterView(CenterX, 6));
+        all.Children.Add(VoxelMeshBuilder.ThreeQuarterView(_centerX, 6));
         rig.Transform = all;
 
         _visual.Content = rig;
@@ -135,10 +146,10 @@ public sealed class PandaView : Viewport3D
         return g;
     }
 
-    private static void AddPart(Model3DGroup group, string part, string species)
+    private void AddPart(Model3DGroup group, string part, string species)
     {
         // 같은 색 상자끼리 한 메시로 묶는다(재질 수 = 색 수).
-        foreach (var byColor in VoxelPanda.Boxes(species).Where(b => b.Part == part).GroupBy(b => b.Color))
+        foreach (var byColor in _boxes.Where(b => b.Part == part).GroupBy(b => b.Color))
             group.Children.Add(VoxelMeshBuilder.BuildMesh(byColor, byColor.Key));
     }
 
@@ -146,9 +157,9 @@ public sealed class PandaView : Viewport3D
     {
         _glasses.Children.Clear();
         _pointer.Children.Clear();
-        foreach (var g in VoxelPanda.Boxes(species).Where(b => b.Part == VoxelPanda.Glasses).GroupBy(b => b.Color))
+        foreach (var g in _boxes.Where(b => b.Part == VoxelPanda.Glasses).GroupBy(b => b.Color))
             _glasses.Children.Add(VoxelMeshBuilder.BuildMesh(g, g.Key));
-        foreach (var g in VoxelPanda.Boxes(species).Where(b => b.Part == VoxelPanda.Pointer).GroupBy(b => b.Color))
+        foreach (var g in _boxes.Where(b => b.Part == VoxelPanda.Pointer).GroupBy(b => b.Color))
             _pointer.Children.Add(VoxelMeshBuilder.BuildMesh(g, g.Key));
     }
 
@@ -156,7 +167,7 @@ public sealed class PandaView : Viewport3D
     /// 브리핑 자세를 켜고 끈다. 켜면 안경을 쓰고 뒷다리로 일어서서 지시봉을 든다.
     /// 자세는 서서히 바뀐다(<see cref="Animate"/> 가 프레임마다 조금씩 옮긴다).
     /// </summary>
-    public void SetBriefing(bool on)
+    public override void SetBriefing(bool on)
     {
         _briefing = on;
         if (!on) _pointAngle = null;
@@ -166,18 +177,18 @@ public sealed class PandaView : Viewport3D
     /// 지시봉이 가리킬 방향(도). 몸이 보는 쪽이 0°, 위가 90°, 아래가 -90° 인 수학 각도다.
     /// null 이면 가리키는 곳이 없어서 살짝 든 채로 쉰다.
     /// </summary>
-    public void PointAt(double? angleDegrees) => _pointAngle = angleDegrees;
+    public override void PointAt(double? angleDegrees) => _pointAngle = angleDegrees;
 
     /// <summary>0(네 발로 섬)~1(완전히 일어섬). 브리핑을 끝내고 다 앉았는지 알 때 쓴다.</summary>
-    public double BriefingBlend => _tilt / BriefTilt;
+    public override double BriefingBlend => _tilt / BriefTilt;
 
     private void FillEyes(string species)
     {
         _eyesOpen.Children.Clear();
         _eyesClosed.Children.Clear();
-        foreach (var g in VoxelPanda.Boxes(species).Where(b => b.Part == VoxelPanda.EyesOpen).GroupBy(b => b.Color))
+        foreach (var g in _boxes.Where(b => b.Part == VoxelPanda.EyesOpen).GroupBy(b => b.Color))
             _eyesOpen.Children.Add(VoxelMeshBuilder.BuildMesh(g, g.Key));
-        foreach (var g in VoxelPanda.Boxes(species).Where(b => b.Part == VoxelPanda.EyesClosed).GroupBy(b => b.Color))
+        foreach (var g in _boxes.Where(b => b.Part == VoxelPanda.EyesClosed).GroupBy(b => b.Color))
             _eyesClosed.Children.Add(VoxelMeshBuilder.BuildMesh(g, g.Key));
     }
 
@@ -185,7 +196,7 @@ public sealed class PandaView : Viewport3D
     /// 지금 포즈에 맞춰 부품을 움직인다. <paramref name="seconds"/> 는 앱이 켜진 뒤 흐른 시간이다.
     /// 걸을 때는 <paramref name="walking"/> 이 참이고, 그때 다리가 번갈아 앞뒤로 흔들린다.
     /// </summary>
-    public void Animate(PetPose pose, bool walking, double seconds)
+    public override void Animate(PetPose pose, bool walking, double seconds)
     {
         if (_builtFor is null) return;
 
