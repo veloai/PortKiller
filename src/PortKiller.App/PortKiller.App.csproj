@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\PortKiller.Core\PortKiller.Core.csproj" />
     <ProjectReference Include="..\PortKiller.Platform\PortKiller.Platform.csproj" />
+    <ProjectReference Include="..\PortKiller.Game\PortKiller.Game.csproj" />
   </ItemGroup>
 
   <!-- 캐릭터 그림. exe 옆에 같은 폴더 모양 그대로 복사한다 - SpriteLibrary 가 그 자리를 본다.

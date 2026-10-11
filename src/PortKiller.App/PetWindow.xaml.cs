@@ -7,6 +7,9 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using PortKiller.Core;
 using PortKiller.Platform;
+using PortKiller.App.Game;
+using PortKiller.Game.Input;
+using PortKiller.Game.Profiles;
 
 namespace PortKiller.App;
 
@@ -54,6 +57,8 @@ public partial class PetWindow : Window
     private NotebookWindow? _notebookWindow;
     private AskWindow? _askWindow;
     private AiSettingsWindow? _aiSettingsWindow;
+    private UnifiedInputDispatcher? _gameDispatcher;
+    private GameMappingWindow? _gameMappingWindow;
     private DispatcherTimer? _gameLoop;
     private DateTimeOffset _lastTick = DateTimeOffset.Now;
     private DateTimeOffset _lastTooltipUpdate = DateTimeOffset.MinValue;
@@ -596,6 +601,31 @@ public partial class PetWindow : Window
 
     private void AskMenu_Click(object sender, RoutedEventArgs e) => OpenAsk();
 
+    private void GameMenu_Click(object sender, RoutedEventArgs e) => OpenGameSettings();
+
+    private void OpenGameSettings()
+    {
+        if (_gameMappingWindow is not null)
+        {
+            _gameMappingWindow.Activate();
+            return;
+        }
+
+        _gameDispatcher ??= new UnifiedInputDispatcher(DefaultProfiles.CreateWoWClassicProfile());
+        _gameDispatcher.VoiceCommandExecuted += (cmd, _) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                Say($"⚔️ {cmd.Phrase}!");
+                React(PetPose.Happy);
+            });
+        };
+
+        _gameMappingWindow = new GameMappingWindow(_gameDispatcher);
+        _gameMappingWindow.Closed += (_, _) => _gameMappingWindow = null;
+        _gameMappingWindow.Show();
+    }
+
     private void CareMenu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem item || !TryReadAction(item, out var action)) return;
@@ -752,6 +782,8 @@ public partial class PetWindow : Window
     {
         _store.Save(BuildSave());
         _notebookWindow?.Close();
+        _gameMappingWindow?.Close();
+        _gameDispatcher?.Dispose();
         _gameLoop?.Stop();
         _activity.Dispose();
 

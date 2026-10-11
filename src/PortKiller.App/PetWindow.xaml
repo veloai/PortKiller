@@ -59,6 +59,10 @@
                               AutomationProperties.AutomationId="AskMenuItem"
                               Header="💬  물어보기"
                               Click="AskMenu_Click" />
+                    <Separator />
+                    <MenuItem x:Name="GameMenuItem"
+                              Header="🎮  게임 / PS5 패드 &amp; 보이스"
+                              Click="GameMenu_Click" />
                 </ContextMenu>
             </Border.ContextMenu>
         </Border>
