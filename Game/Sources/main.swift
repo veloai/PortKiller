@@ -16,10 +16,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.title = "PortKiller Gamepad & Voice Studio (macOS Native)"
         window.contentView = NSHostingView(rootView: contentView)
+        window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
         self.window = window
 
         NSApp.activate(ignoringOtherApps: true)
+
+        // 화면 스냅샷 자동 생성 (사용자 채팅창 미리보기용)
+        savePreview()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
