@@ -162,9 +162,12 @@ ac.dat`, DPAPI(현재 사용자) 암호화. 세이브·AI 설정과 다른 파�
 
 ## 시작 프로그램 등록
 
-- 위치: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, 값 이름 `PortKillerPet`
-- **기본값은 꺼짐.** 사용자가 트레이 메뉴에서 직접 켤 때만 등록된다.
-- 현재 사용자 영역(HKCU)만 쓴다. 시스템 전역(HKLM)은 건드리지 않는다.
+- 위치 두 곳: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 의 `PortKillerPet` 값과, 사용자 시작 폴더의 `PortKillerPet.lnk` 바로가기.
+  레지스트리 항목만으로는 재부팅 때 안 뜨는 PC 가 있어서 윈도우의 다른 길(시작 폴더)을 같이 건다. 둘 다 현재 사용자 영역이다.
+- **기본값은 꺼짐.** 사용자가 트레이 메뉴나 NAC 설정 창에서 직접 켤 때만 등록된다. 끄면 둘 다 지운다.
+- 시스템 전역(HKLM)은 건드리지 않는다.
+- 두 길이 겹쳐도 앱은 한 번만 뜬다(이름 있는 뮤텍스, 같은 계정 안에서만).
+- `%APPDATA%\PortKillerPet\startup.log` 에 시작·종료·오류를 한 줄씩 남긴다(시각, 프로세스 번호, 실행 인자, 예외 종류·메시지). 개인 정보나 입력 내용은 담지 않고, 64KB 를 넘으면 앞부분을 잘라 낸다.
 
 ## 배포
 
