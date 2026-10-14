@@ -64,6 +64,8 @@ public static class NacAutoLogin
             if (ct.WaitHandle.WaitOne(PollInterval)) break;
         }
 
+        // Genian 창은 있는데 로그인 창으로 알아보지 못한 경우를 위해 구조를 남겨 둔다(원인을 다음에 볼 수 있게).
+        if (GenianWindows().Count > 0) TryWriteDump();
         return new NacLoginResult(NacLoginOutcome.NotFound, "로그인 창이 보이지 않았어요.");
     }
 
@@ -97,24 +99,39 @@ public static class NacAutoLogin
 
     private static bool LooksLikeLoginWindow(AutomationElement window)
     {
-        try
-        {
-            var edits = window.FindAll(TreeScope.Descendants,
-                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
-            var hasPassword = false;
-            var hasUser = false;
-            foreach (AutomationElement e in edits)
-            {
-                if (e.Current.IsPassword) hasPassword = true;
-                else hasUser = true;
-            }
+        try { return FindFields(window) is not null; }
+        catch (ElementNotAvailableException) { return false; }
+    }
 
-            return hasPassword && hasUser && FindSubmit(window) is not null;
-        }
-        catch (ElementNotAvailableException)
+    /// <summary>로그인 창의 세 부품: 아이디 칸, 비밀번호 칸, [인증] 버튼.</summary>
+    private sealed record LoginFields(AutomationElement UserId, AutomationElement Password, AutomationElement Submit);
+
+    /// <summary>
+    /// 로그인 창의 부품을 찾는다. 셋이 다 있어야 로그인 창이다(없으면 null).
+    ///
+    /// <para>Genian 의 창은 입력 칸을 <c>Edit</c> 종류가 아니라 <b>Pane</b> 으로 내보내고 비밀번호 표시(IsPassword)도 없다
+    /// (실제 덤프로 확인). 그래서 "윈도우 클래스가 Edit 인 칸"까지 입력 칸으로 보고,
+    /// 비밀번호 칸은 표시나 칸 이름("비밀번호")으로 가른다.</para>
+    /// </summary>
+    private static LoginFields? FindFields(AutomationElement window)
+    {
+        AutomationElement? user = null, password = null;
+        foreach (AutomationElement e in window.FindAll(TreeScope.Descendants, Condition.TrueCondition))
         {
-            return false;
+            var c = e.Current;
+            var isInput = c.ControlType == ControlType.Edit
+                          || string.Equals(c.ClassName, "Edit", StringComparison.OrdinalIgnoreCase);
+            if (!isInput) continue;
+
+            var name = c.Name ?? string.Empty;
+            if (c.IsPassword || name.Contains("비밀번호") || name.Contains("password", StringComparison.OrdinalIgnoreCase))
+                password ??= e;
+            else
+                user ??= e;
         }
+
+        var submit = FindSubmit(window);
+        return user is null || password is null || submit is null ? null : new LoginFields(user, password, submit);
     }
 
     /// <summary>
@@ -133,7 +150,9 @@ public static class NacAutoLogin
                 foreach (AutomationElement e in window.FindAll(TreeScope.Descendants, Condition.TrueCondition))
                 {
                     var c = e.Current;
-                    sb.AppendLine($"  {c.ControlType.ProgrammaticName} name='{c.Name}' id='{c.AutomationId}' class='{c.ClassName}' password={c.IsPassword}");
+                    var patterns = string.Join(",", e.GetSupportedPatterns()
+                        .Select(p => p.ProgrammaticName.Replace("PatternIdentifiers.Pattern", string.Empty)));
+                    sb.AppendLine($"  {c.ControlType.ProgrammaticName} name='{c.Name}' id='{c.AutomationId}' class='{c.ClassName}' password={c.IsPassword} patterns=[{patterns}]");
                 }
 
                 any = true;
@@ -142,6 +161,26 @@ public static class NacAutoLogin
         }
 
         return any ? sb.ToString() : "Genian 창이 없다.";
+    }
+
+    /// <summary>진단 파일 경로. 설정 창의 "창 구조 저장"과 같은 파일이다.</summary>
+    public static string DumpPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PortKillerPet", "nac-dump.txt");
+
+    /// <summary>
+    /// 창 구조를 진단 파일에 쓴다. 한글이 깨지지 않게 BOM 이 붙은 UTF-8 로 쓴다(메모장·PowerShell 이 바로 읽는다).
+    /// 못 써도 조용히 넘어간다 - 진단이 본 기능을 막으면 안 된다.
+    /// </summary>
+    public static void TryWriteDump()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(DumpPath)!);
+            File.WriteAllText(DumpPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}{Dump()}", new UTF8Encoding(true));
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private static List<AutomationElement> GenianWindows()
@@ -188,18 +227,9 @@ public static class NacAutoLogin
     {
         try
         {
-            var edits = window.FindAll(TreeScope.Descendants,
-                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
-
-            AutomationElement? password = null, userId = null;
-            foreach (AutomationElement e in edits)
-            {
-                if (e.Current.IsPassword) password ??= e;
-                else userId ??= e;
-            }
-
-            var submit = FindSubmit(window);
-            if (password is null || userId is null || submit is null) return null; // 로그인 창이 아직 아니다
+            var fields = FindFields(window);
+            if (fields is null) return null; // 로그인 창이 아직 아니다
+            var (userId, password, submit) = (fields.UserId, fields.Password, fields.Submit);
 
             Set(userId, cred.UserId);
             Set(password, cred.Password);
@@ -220,6 +250,7 @@ public static class NacAutoLogin
         }
         catch (InvalidOperationException ex)
         {
+            TryWriteDump();   // 왜 못 넣었는지(지원하는 방식)를 파일로 남긴다
             return new NacLoginResult(NacLoginOutcome.Failed, "입력이 거부됐어요: " + ex.Message);
         }
         catch (UnauthorizedAccessException)
@@ -228,13 +259,19 @@ public static class NacAutoLogin
         }
     }
 
-    /// <summary>[인증] 버튼. 이름이 맞는 것만 누른다 — 아무 버튼이나 누르지 않는다(닫기 ×를 누를 수 있다).</summary>
+    /// <summary>
+    /// [인증] 버튼. 이름이 맞는 것만 누른다 - 아무 버튼이나 누르지 않는다(닫기 ×를 누를 수 있다).
+    /// 이름을 못 읽는 환경을 위해, Genian 로그인 창(클래스 CN_GNAUTH_DLG)의 [인증] 버튼 고유 번호(1003)도 인정한다.
+    /// </summary>
     private static AutomationElement? FindSubmit(AutomationElement window)
     {
+        var isGenianDialog = window.Current.ClassName == "CN_GNAUTH_DLG";
         foreach (AutomationElement b in window.FindAll(TreeScope.Descendants,
                      new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button)))
         {
-            if (b.Current.Name.Trim() == SubmitButtonName) return b;
+            var c = b.Current;
+            if (c.Name.Trim() == SubmitButtonName) return b;
+            if (isGenianDialog && c.AutomationId == "1003") return b;
         }
 
         return null;
@@ -243,7 +280,12 @@ public static class NacAutoLogin
     private static void Set(AutomationElement edit, string value)
     {
         if (!edit.TryGetCurrentPattern(ValuePattern.Pattern, out var p))
-            throw new InvalidOperationException("값을 넣을 수 없는 칸이에요.");
+        {
+            var supported = string.Join(",", edit.GetSupportedPatterns()
+                .Select(x => x.ProgrammaticName.Replace("PatternIdentifiers.Pattern", string.Empty)));
+            throw new InvalidOperationException($"값을 넣을 수 없는 칸이에요(지원: {(supported.Length == 0 ? "없음" : supported)}).");
+        }
+
         ((ValuePattern)p).SetValue(value);
     }
 }

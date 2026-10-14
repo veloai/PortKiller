@@ -128,18 +128,7 @@ public partial class NacSettingsWindow : Window
 
     private void DumpButton_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            var path = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "PortKillerPet", "nac-dump.txt");
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, NacAutoLogin.Dump());
-            SaveState.Text = "저장했어요: " + path;
-        }
-        catch (Exception)
-        {
-            SaveState.Text = "저장하지 못했어요.";
-        }
+        NacAutoLogin.TryWriteDump();
+        SaveState.Text = File.Exists(NacAutoLogin.DumpPath) ? "저장했어요: " + NacAutoLogin.DumpPath : "저장하지 못했어요.";
     }
 }
