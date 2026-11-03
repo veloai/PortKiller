@@ -10,6 +10,7 @@ internal interface IPetMcpHost
     void Say(string text, PetPose? reaction);
     JsonObject Status();
     JsonObject Dev();
+    JsonObject Memory();
     void Briefing(bool show);
 }
 
@@ -67,6 +68,14 @@ internal static class PetMcpTools
             "with a one-line summary. Checked about once a minute.",
             Schema(new JsonObject()),
             _ => new McpToolResult(host.Dev().ToJsonString(Pretty))),
+
+        new McpTool(
+            "pet_memory",
+            "Read what the pet remembers about the user's work rhythm on this PC (kept 90 days, this device only): " +
+            "this week's summary, current streak of workdays, today's record and the last 7 days " +
+            "(first activity time, focus hours, pomodoros, cares, todos done).",
+            Schema(new JsonObject()),
+            _ => new McpToolResult(host.Memory().ToJsonString(Pretty))),
 
         new McpTool(
             "pet_briefing",

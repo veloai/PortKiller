@@ -78,7 +78,16 @@ public class PetMemoryTests
         var early = new PetMemory();
         foreach (var day in new[] { 27, 28, 29, 30 }) Arrive(early, At(10, day, 9, 0));
         Arrive(early, At(11, 2, 8, 0));
-        Assert.Contains("60분 일찍", MemoryInsights.ArrivalLine(early, At(11, 2, 8, 0)));
+        Assert.Contains("1시간 일찍", MemoryInsights.ArrivalLine(early, At(11, 2, 8, 0)));
+    }
+
+    [Theory]
+    [InlineData(50, "50분")]
+    [InlineData(60, "1시간")]
+    [InlineData(375, "6시간 15분")]
+    public void Durations_read_naturally(int minutes, string expected)
+    {
+        Assert.Equal(expected, MemoryInsights.Duration(minutes));
     }
 
     [Fact]

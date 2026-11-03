@@ -63,7 +63,7 @@
 | 브리핑(안경·지시봉), 상태 카드 | ✅ | |
 | 개발 환경 감시(E) | ✅ | `devstatus.json` 으로 목록 변경 |
 | MCP 서버(C) | ✅ | 10/10 시험 통과 |
-| 장기 기억(B) | 🟡 | Core 규칙·저장소·시험 10개 커밋. **펫 화면 연결 전** |
+| 장기 기억(B) | ✅ | 첫 출근 한마디·신기록·브리핑 카드 주간 요약·MCP `pet_memory`·"기억 지우기". 11/03 실기 확인 |
 | 자동 실행·시작 기록·중복 방지 | ✅ | `startup.log` |
 | NAC 자동 로그인 | 🔴 | 창 찾기·입력 방식은 됨. Genian `GNAUTH` 가 관리자 권한이라 막힘 → 관리자 도우미(작업 스케줄러) **승인 대기** |
 | ALFA 백엔드 연결(cli-ask) | ⚪ | ALFA 쪽 `ALFA_CLI_ASK_ENABLED`·호출자 `pkp` 열쇠 설정 필요(승인 필요) |
@@ -79,7 +79,7 @@
 - 저장소: `git pull` 후 작업. 로컬 데이터(`%APPDATA%\PortKillerPet\*`)는 기기별이라 옮기지 않는다(펫은 기기마다 따로).
 
 ### 다음 할 일 (순서)
-1. **B 마무리**: `PetWindow` 에 `MemoryStore`/`PetMemory.Observe` 연결(저장 주기 15초에 함께), 첫 출근 한마디(`MemoryInsights.ArrivalLine`), 신기록 알림, 브리핑 카드에 `WeekSummary`, MCP `pet_memory`, "🧠 기억 지우기" 메뉴, 개인정보 문서. (Core 는 맥에서도 가능)
+1. ~~B 마무리~~ ✅ 2026-11-03
 2. **ALFA 연결 설계**: cli-ask 가 켜져 있는지 확인 → 호출자 `pkp` 등록 방식 결정(ALFA 설정 변경은 승인 후)
 3. NAC 관리자 도우미(승인 시)
 4. 게임 기능의 개인정보 문서 반영

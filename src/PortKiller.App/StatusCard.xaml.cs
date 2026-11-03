@@ -147,6 +147,13 @@ public partial class StatusCard : UserControl
             : Briefing.Summary(_pet.Stats);
     }
 
+    /// <summary>펫의 기억 한 줄(이번 주 요약). 빈 값이면 숨긴다.</summary>
+    public void UpdateMemory(string? line)
+    {
+        MemoryText.Text = line is { Length: > 0 } ? "🧠 " + line : string.Empty;
+        MemoryText.Visibility = MemoryText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     /// <summary>개발 환경 확인 결과를 카드에 그린다(1분에 한 번 정도 불린다).</summary>
     public void UpdateDev(IReadOnlyList<DevCheck> checks)
     {

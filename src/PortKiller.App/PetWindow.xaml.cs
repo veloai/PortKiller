@@ -36,6 +36,11 @@ public partial class PetWindow : Window, IPetMcpHost
     private static readonly TimeSpan SaveInterval = TimeSpan.FromSeconds(15);
 
     private readonly ISaveStore _store = new JsonSaveStore(ArgValue("--save-dir"));
+
+    /// <summary>장기 기억(memory.json). 검사용 --save-dir 을 주면 그 폴더에 둔다 - 진짜 기억을 건드리지 않게.</summary>
+    private readonly MemoryStore _memoryStore = new(ArgValue("--save-dir"));
+    private PetMemory _memory = new();
+    private string? _weekLine;
     private readonly ActivityMonitor _activity = new();
     private readonly Random _rng = new();
     private readonly List<FrameworkElement> _poops = new();
@@ -635,6 +640,7 @@ public partial class PetWindow : Window, IPetMcpHost
         var data = _store.Load();
         _pet = Wire(Pet.FromSave(data));
         _notebook = WireNotebook(Notebook.FromSave(data.Notebook));
+        _memory = _memoryStore.Load();
 
         // 지난번에 세워 둔 자리로 돌려놓는다. 화면이 좁아졌거나 모니터가 바뀌었을 수 있으니
         // 지금 창 안으로 가둔다 — 안 그러면 화면 밖에 서서 영영 안 보인다.
@@ -825,6 +831,7 @@ public partial class PetWindow : Window, IPetMcpHost
         {
             _store.Save(BuildSave());
             _lastSave = DateTimeOffset.Now;
+            _memoryStore.Save(_memory);
         }
         catch (Exception)
         {
@@ -836,10 +843,12 @@ public partial class PetWindow : Window, IPetMcpHost
     {
         if (now - _lastSave < SaveInterval) return;
         _lastSave = now;
+        ObserveMemory(now);
 
         try
         {
             _store.Save(BuildSave());
+            _memoryStore.Save(_memory);
         }
         catch (Exception)
         {
@@ -931,6 +940,83 @@ public partial class PetWindow : Window, IPetMcpHost
     private void NacMenu_Click(object sender, RoutedEventArgs e) => OpenNacSettings();
 
     private void NewPetMenu_Click(object sender, RoutedEventArgs e) => ConfirmAndReset();
+
+    private void ForgetMenu_Click(object sender, RoutedEventArgs e)
+    {
+        var answer = MessageBox.Show(
+            "펫이 기억하는 출근 시각·집중 시간 같은 기록을 모두 지울까요?\n펫과 세이브는 그대로예요.",
+            "기억 지우기",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.OK) return;
+
+        try
+        {
+            _memory = _memoryStore.Clear();
+            _weekLine = null;
+            DebugPanel.UpdateMemory(null);
+            Say("다 잊었어요. 처음 만난 것처럼 다시 기억할게요.");
+        }
+        catch (Exception)
+        {
+            Say("기억을 지우지 못했어요. 파일 권한을 확인해 주세요.");
+        }
+    }
+
+    // ---------- 장기 기억 ----------
+
+    /// <summary>
+    /// 15초마다 오늘 기록을 갱신한다. 그날 처음 활동이 보이면 기억을 바탕으로 한마디 하고(하루 한 번),
+    /// 집중 시간이 신기록을 넘으면 한 번 축하한다. 새로 감시하는 것은 없다 - 이미 아는 값만 쓴다.
+    /// </summary>
+    private void ObserveMemory(DateTimeOffset now)
+    {
+        var arrived = _memory.Observe(now, !_activity.IsIdle, _pet.FocusSeconds, _pet.CareCount,
+            _notebook.PomodoroCompleted, _notebook.DoneCount());
+        var today = PetMemory.DateOf(now);
+
+        if (arrived && _memory.Data.LastGreetedDate != today)
+        {
+            _memory.Data.LastGreetedDate = today;
+            if (MemoryInsights.ArrivalLine(_memory, now) is { } line) Say(line);
+        }
+
+        if (_memory.Data.LastRecordDate != today && MemoryInsights.RecordLine(_memory, now) is { } record)
+        {
+            _memory.Data.LastRecordDate = today;
+            Say(record);
+            React(PetPose.Happy);
+        }
+
+        _weekLine = MemoryInsights.WeekSummary(_memory, now);
+        DebugPanel.UpdateMemory(_weekLine);
+    }
+
+    System.Text.Json.Nodes.JsonObject IPetMcpHost.Memory() => Dispatcher.Invoke(() =>
+    {
+        var now = DateTimeOffset.Now;
+        var days = new System.Text.Json.Nodes.JsonArray();
+        foreach (var d in _memory.Data.Days.OrderByDescending(d => d.Date).Take(7))
+        {
+            days.Add(new System.Text.Json.Nodes.JsonObject
+            {
+                ["date"] = d.Date,
+                ["firstActive"] = d.FirstActiveMinute is { } m ? $"{m / 60:00}:{m % 60:00}" : null,
+                ["focusHours"] = Math.Round(d.FocusSeconds / 3600, 1),
+                ["pomodoros"] = d.Pomodoros,
+                ["cares"] = d.Cares,
+                ["todosDone"] = d.TodosDone,
+            });
+        }
+
+        return new System.Text.Json.Nodes.JsonObject
+        {
+            ["weekSummary"] = MemoryInsights.WeekSummary(_memory, now),
+            ["streakWorkdays"] = MemoryInsights.Streak(_memory, now),
+            ["keptDays"] = _memory.Data.Days.Count,
+            ["lastDays"] = days,
+        };
+    });
 
     private void StatusMenu_Click(object sender, RoutedEventArgs e) => ToggleStatus();
 
@@ -1182,6 +1268,7 @@ public partial class PetWindow : Window, IPetMcpHost
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         _store.Save(BuildSave());
+        try { _memoryStore.Save(_memory); } catch (Exception) { }
         _notebookWindow?.Close();
         _nacCancel.Cancel();
         _devCancel.Cancel();

@@ -63,6 +63,10 @@
                 <TextBlock x:Name="DaysText"   Foreground="#FFCBD2F0" FontSize="11" HorizontalAlignment="Center" />
                 <TextBlock x:Name="PoopText"   Foreground="#FFCBD2F0" FontSize="11" HorizontalAlignment="Right" />
             </UniformGrid>
+
+            <!-- 펫의 기억: 이번 주 요약 한 줄 -->
+            <TextBlock x:Name="MemoryText" Foreground="#FF9AA3C7" FontSize="10.5" Margin="0,6,0,0"
+                       TextWrapping="Wrap" Visibility="Collapsed" />
         </StackPanel>
     </Border>
 </UserControl>

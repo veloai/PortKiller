@@ -135,8 +135,8 @@ public static class MemoryInsights
             {
                 var usual = recent.OrderBy(x => x).ElementAt(recent.Count / 2); // 중앙값: 하루 튀는 날에 흔들리지 않게
                 var diff = arrivedAt - usual;
-                if (diff >= ArrivalDiffMinutes) return $"오늘은 평소보다 {diff}분 늦었네요. 무슨 일 있었어요?";
-                if (diff <= -ArrivalDiffMinutes) return $"오늘은 평소보다 {-diff}분 일찍 왔네요! 부지런해요.";
+                if (diff >= ArrivalDiffMinutes) return $"오늘은 평소보다 {Duration(diff)} 늦었네요. 무슨 일 있었어요?";
+                if (diff <= -ArrivalDiffMinutes) return $"오늘은 평소보다 {Duration(-diff)} 일찍 왔네요! 부지런해요.";
             }
         }
 
@@ -192,6 +192,15 @@ public static class MemoryInsights
         var best = week.OrderByDescending(d => d.FocusSeconds).FirstOrDefault(d => d.FocusSeconds > 0);
         var bestText = best is null ? "" : $" · 최고 {Weekday(best.Date)} {best.FocusSeconds / 3600:F1}h";
         return $"이번 주 집중 {focus:F1}h · 출근 {days}일 · 뽀모도로 {pomo}회{bestText}";
+    }
+
+    /// <summary>분을 읽기 쉬운 말로: 50 → "50분", 60 → "1시간", 375 → "6시간 15분".</summary>
+    public static string Duration(int minutes)
+    {
+        if (minutes < 60) return $"{minutes}분";
+        var h = minutes / 60;
+        var m = minutes % 60;
+        return m == 0 ? $"{h}시간" : $"{h}시간 {m}분";
     }
 
     private static string Weekday(string date) => DateTime.Parse(date).DayOfWeek switch

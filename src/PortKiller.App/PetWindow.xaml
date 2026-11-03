@@ -57,6 +57,7 @@
                               Click="GameMenu_Click" />
                     <MenuItem Header="🔐  NAC 자동 로그인 설정" Click="NacMenu_Click" />
                     <MenuItem Header="🧺  새 펫 맞이하기" Click="NewPetMenu_Click" />
+                    <MenuItem Header="🧠  기억 지우기" Click="ForgetMenu_Click" />
                     <Separator />
                     <MenuItem Header="⏻  종료" Click="QuitMenu_Click" />
                 </ContextMenu>
