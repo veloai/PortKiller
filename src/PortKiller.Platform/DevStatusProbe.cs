@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using PortKiller.Core;
 
@@ -21,7 +22,12 @@ public static class DevStatusProbe
     public static string ConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PortKillerPet", "devstatus.json");
 
-    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    /// <summary>한글 이름을 그대로 쓴다(사람이 메모장으로 고치는 파일이라 escape 하면 읽을 수 없다).</summary>
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
 
     /// <summary>확인 목록을 읽는다. 파일이 없거나 깨졌으면 기본 목록이다(없을 때는 기본 목록으로 파일을 만들어 고칠 수 있게 한다).</summary>
     public static IReadOnlyList<DevCheckSpec> LoadSpecs()
