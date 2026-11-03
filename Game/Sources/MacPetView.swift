@@ -5,7 +5,6 @@ import AppKit
 public struct MacPetView: View {
     @ObservedObject var state = MacPetState.shared
     @State private var isHovered = false
-    @State private var showHeart = false
 
     public init() {}
 
@@ -40,14 +39,6 @@ public struct MacPetView: View {
                         }
                         .frame(width: 120, height: 120)
                     }
-
-                    // 쓰다듬었을 때 하트 이펙트
-                    if showHeart {
-                        Text("❤️")
-                            .font(.system(size: 32))
-                            .offset(y: -50)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
                 }
                 .scaleEffect(isHovered ? 1.05 : 1.0)
                 .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isHovered)
@@ -55,38 +46,14 @@ public struct MacPetView: View {
                     isHovered = hovering
                 }
                 .onTapGesture {
-                    triggerHeartAnimation()
-                    state.pet()
-                }
-
-                // 똥
-                if state.isPoopPresent, let poopImg = state.resolvePoopSprite() {
-                    Image(nsImage: poopImg)
-                        .interpolation(.none)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 36, height: 36)
-                        .onTapGesture {
-                            state.cleanPoop()
-                        }
-                        .help("클릭해서 똥 치우기")
+                    state.briefing()
                 }
             }
         }
         .padding(10)
-        // 우클릭 컨텍스트 메뉴
+        // 우클릭 컨텍스트 메뉴 (다마고치 메뉴 제거 -> 브리핑 & HUD)
         .contextMenu {
-            Button("🍎 간식 주기 (밥먹기)") {
-                state.feed()
-            }
-            Button("🧹 똥 치우기 (청소)") {
-                state.cleanPoop()
-            }
-            Button("💖 쓰다듬기") {
-                triggerHeartAnimation()
-                state.pet()
-            }
-            Button("📊 펫 브리핑") {
+            Button("📊 환경 브리핑") {
                 state.briefing()
             }
             Divider()
@@ -96,17 +63,6 @@ public struct MacPetView: View {
             Divider()
             Button("❌ 펫 숨기기") {
                 MacPetWindowManager.shared.togglePet()
-            }
-        }
-    }
-
-    private func triggerHeartAnimation() {
-        withAnimation(.easeOut(duration: 0.2)) {
-            showHeart = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            withAnimation(.easeIn(duration: 0.3)) {
-                showHeart = false
             }
         }
     }

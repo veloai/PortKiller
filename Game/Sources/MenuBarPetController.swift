@@ -104,13 +104,12 @@ public final class MenuBarPetController: NSObject, ObservableObject {
 
     private func enterIdleOrAction() {
         let rand = Int.random(in: 0...10)
-        if rand < 5 {
+        if rand < 6 {
             roamState = .idle
             stateCountdown = Int.random(in: 15...30) // 1.5초 ~ 3초 멈춰서 두리번거리기
-        } else if rand < 8 {
+        } else if rand < 9 {
             roamState = .happy
             stateCountdown = 18 // 기분 좋게 통통 뛰기
-            MacPetState.shared.happiness = min(100, MacPetState.shared.happiness + 2)
         } else {
             roamState = .napping
             stateCountdown = 35 // 잠깐 낮잠 zZ
@@ -203,17 +202,16 @@ public final class MenuBarPetController: NSObject, ObservableObject {
         if pop.isShown {
             pop.performClose(nil)
         } else {
-            // 클릭 시 펫이 반갑게 점프 반응
+            // 클릭 시 가볍게 통통 뛰며 인사
             roamState = .happy
             stateCountdown = 20
-            MacPetState.shared.pet()
 
             pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }
 }
 
-// MARK: - 상태창 펫 클릭 시 열리는 상세 팝오버 뷰
+// MARK: - 상태창 펫 클릭 시 열리는 상세 팝오버 뷰 (다마고치 요소 제거 - 클린 상태창)
 struct MenuBarPetPopoverView: View {
     @ObservedObject var state = MacPetState.shared
 
@@ -226,17 +224,17 @@ struct MenuBarPetPopoverView: View {
                         .interpolation(.none)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 52, height: 52)
+                        .frame(width: 48, height: 48)
                         .background(Color(red: 0.12, green: 0.15, blue: 0.20))
                         .cornerRadius(10)
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("🐾 ALFA 도트 펫 (상태창)")
+                    Text("🐾 ALFA 도트 펫")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.primary)
 
-                    Text(state.speechMessage ?? "상태창에서 산책 중이에요!")
+                    Text(state.speechMessage ?? state.devStatusSummary)
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .lineLimit(2)
@@ -245,58 +243,39 @@ struct MenuBarPetPopoverView: View {
 
             Divider()
 
-            // 펫 스탯 (포만감, 청결도, 행복도)
-            HStack(spacing: 16) {
-                VStack(spacing: 2) {
-                    Text("🍎 포만감").font(.system(size: 10)).foregroundColor(.secondary)
-                    Text("\(Int(state.hunger))%").font(.system(size: 12, weight: .bold)).foregroundColor(.orange)
+            // 개발 환경 & 시스템 정보
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("💻 ALFA 환경").font(.system(size: 10)).foregroundColor(.secondary)
+                    Text("정상 가동").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
                 }
-                VStack(spacing: 2) {
-                    Text("✨ 청결도").font(.system(size: 10)).foregroundColor(.secondary)
-                    Text("\(Int(state.hygiene))%").font(.system(size: 12, weight: .bold)).foregroundColor(.cyan)
-                }
-                VStack(spacing: 2) {
-                    Text("💖 행복도").font(.system(size: 10)).foregroundColor(.secondary)
-                    Text("\(Int(state.happiness))%").font(.system(size: 12, weight: .bold)).foregroundColor(.pink)
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("기기").font(.system(size: 10)).foregroundColor(.secondary)
+                    Text("mac-air (M5)").font(.system(size: 12, weight: .semibold)).foregroundColor(.primary)
                 }
             }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(8)
 
             Divider()
 
-            // 액션 버튼 모음
+            // 액션 버튼 모음 (다마고치 버튼 제거 -> 브리핑 & 뷰 토글)
             VStack(spacing: 6) {
-                HStack(spacing: 6) {
-                    Button(action: { state.feed() }) {
-                        Label("간식 주기", systemImage: "takeoutbag.and.cup.and.straw")
-                            .font(.system(size: 11))
-                            .frame(maxWidth: .infinity)
-                    }
-
-                    Button(action: { state.pet() }) {
-                        Label("쓰다듬기", systemImage: "heart.fill")
-                            .font(.system(size: 11))
-                            .frame(maxWidth: .infinity)
-                    }
+                Button(action: { state.briefing() }) {
+                    Label("환경 브리핑 새로고침", systemImage: "chart.bar.fill")
+                        .font(.system(size: 11))
+                        .frame(maxWidth: .infinity)
                 }
 
-                HStack(spacing: 6) {
-                    Button(action: { state.briefing() }) {
-                        Label("브리핑", systemImage: "chart.bar.fill")
-                            .font(.system(size: 11))
-                            .frame(maxWidth: .infinity)
-                    }
-
-                    Button(action: {
-                        MacPetWindowManager.shared.togglePet()
-                    }) {
-                        Label(MacPetWindowManager.shared.isVisible ? "바탕화면 숨기기" : "바탕화면 꺼내기", systemImage: "display")
-                            .font(.system(size: 11))
-                            .frame(maxWidth: .infinity)
-                    }
+                Button(action: {
+                    MacPetWindowManager.shared.togglePet()
+                }) {
+                    Label(MacPetWindowManager.shared.isVisible ? "바탕화면 숨기기" : "바탕화면 꺼내기", systemImage: "display")
+                        .font(.system(size: 11))
+                        .frame(maxWidth: .infinity)
                 }
             }
 
@@ -320,6 +299,6 @@ struct MenuBarPetPopoverView: View {
             }
         }
         .padding(14)
-        .frame(width: 250)
+        .frame(width: 240)
     }
 }

@@ -103,29 +103,15 @@ struct TestRunner {
         let sprite = pet.resolveCurrentSprite()
         assert(sprite != nil, "macOS 데스크톱 펫 스프라이트 이미지가 성공적으로 로드되어야 함")
 
-        let poopSprite = pet.resolvePoopSprite()
-        assert(poopSprite != nil, "똥 스프라이트 이미지가 성공적으로 로드되어야 함")
-
-        // 상호작용 검증
+        // 개발 환경 브리핑 및 상태 메시지 검증 (다마고치 요소 배제)
         pet.say(message: "테스트 말풍선")
         assert(pet.speechMessage == "테스트 말풍선", "말풍선 메시지 일치")
 
-        let prevHappiness = pet.happiness
-        pet.pet()
-        assert(pet.pose == "happy", "쓰다듬기 시 happy 포즈")
-        assert(pet.happiness >= prevHappiness, "행복도 증가")
+        pet.briefing()
+        assert(pet.pose == "happy", "브리핑 시 happy 포즈")
+        assert(pet.speechMessage != nil, "브리핑 메시지 생성 확인")
 
-        let prevHunger = pet.hunger
-        pet.feed()
-        assert(pet.pose == "eat", "간식 주기 시 eat 포즈")
-        assert(pet.hunger >= prevHunger, "포만감 증가")
-
-        pet.isPoopPresent = true
-        pet.cleanPoop()
-        assert(!pet.isPoopPresent, "똥 치우기 후 isPoopPresent false")
-        assert(pet.hygiene == 100.0, "똥 치우기 후 청결도 100")
-
-        print("  -> PASSED: macOS 데스크톱 펫 상태 변화 및 스프라이트 로딩 100% 검증 완료.")
+        print("  -> PASSED: macOS 데스크톱 펫 앰비언트 상태 및 스프라이트 로딩 100% 검증 완료.")
     }
 
     @MainActor
