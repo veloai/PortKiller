@@ -97,6 +97,17 @@
 - **확인 목록**: `%APPDATA%\PortKillerPet\devstatus.json` (처음 켤 때 기본 목록으로 만들어진다. 고쳐서 항목을 바꿀 수 있다).
 - 결과는 화면에만 쓰고 저장하지 않는다.
 
+## MCP 서버 (2026-11 추가)
+
+Claude Code·ALFA 같은 에이전트가 펫을 부를 수 있게, PKP 안에서 MCP(Model Context Protocol) 서버를 연다.
+
+- **어디서 열리나**: `127.0.0.1:47420` (이 PC 안에서만. 다른 PC 에서는 닿지 않는다). 바깥으로 나가는 통신은 없다.
+- **누가 부를 수 있나**: `%APPDATA%\PortKillerPet\mcp.key` 의 열쇠를 `Authorization: Bearer` 로 보낸 쪽만. 처음 켤 때 무작위로 만든다.
+  브라우저가 붙이는 `Origin` 이 localhost 가 아니면 거절한다(웹페이지가 몰래 부르는 것 차단).
+- **도구는 일부러 좁게**: `pet_say`(말풍선·표정), `pet_status`(펫 상태 읽기), `dev_status`(개발 환경 상태 읽기), `pet_briefing`(브리핑 켜고 끄기).
+  파일 읽기·명령 실행·화면 보기·키보드/마우스 조작 도구는 **없다.**
+- 검사: `scripts/mcp-smoke.ps1` (정상 호출과 막힘 4가지를 확인).
+
 ## NAC 자동 로그인 (2026-09-30 추가, 기본 꺼짐)
 
 재부팅 뒤 뜨는 Genian NAC 로그인 창에 아이디·비밀번호를 대신 넣고 [인증]을 누른다.

@@ -13,6 +13,7 @@ Workspace Utilizer & Open Development Tools
 - 돌보기: 우클릭 메뉴(먹이·간식·놀기·청소·약·재우기) + 말풍선 반응
 - 응아: 시간이 지나면 생기고 클릭하면 치워진다
 - 수첩: 오늘 할 일 3개, 리마인더(한 번/매일/평일), 뽀모도로 25분 집중
+- **MCP 서버**: `127.0.0.1:47420/mcp` (열쇠: `%APPDATA%\PortKillerPet\mcp.key`). 에이전트가 `pet_say`·`pet_status`·`dev_status`·`pet_briefing` 로 펫을 부른다
 - **개발 환경 상태**: Docker·컨테이너(hermes, alfa-backend, alfa-pg)·Hermes 브리지(47411)를 1분마다 확인해 브리핑 카드에 표시하고, 멈추거나 되살아나면 펫이 말한다. 목록은 `%APPDATA%\PortKillerPet\devstatus.json`
 - **브리핑(상태 보기)**: 레서판다가 안경을 쓰고 일어서서, 옆 대시보드 카드를 지시봉으로 짚으며 설명한다. 마우스를 카드 위로 움직이면 지시봉이 따라가고 그 항목에 대한 한마디를 한다
 - 트레이 아이콘: 상태 보기 / 수첩 / 항상 위 / 자동 실행 / 초기화 / 종료

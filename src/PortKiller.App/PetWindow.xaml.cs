@@ -11,7 +11,7 @@ using PortKiller.Platform;
 
 namespace PortKiller.App;
 
-public partial class PetWindow : Window
+public partial class PetWindow : Window, IPetMcpHost
 {
     /// <summary>펫이 밟고 설 바닥을 화면 아래에서 이만큼 띄운다.</summary>
     private const double GroundMargin = 8.0;
@@ -137,6 +137,7 @@ public partial class PetWindow : Window
         OpenNotebookIfRequested();
         _ = ReportGenianOnStartAsync();
         _ = WatchDevStatusAsync();
+        StartMcpServer();
         _ = AutoLoginNacOnStartAsync();
     }
 
@@ -316,6 +317,7 @@ public partial class PetWindow : Window
                 }
 
                 last = now;
+                _lastDev = now;
                 await Task.Delay(DevInterval, _devCancel.Token);
             }
         }
@@ -323,6 +325,90 @@ public partial class PetWindow : Window
         {
         }
     }
+
+    // ---------- MCP 서버 ----------
+
+    private McpHttpHost? _mcp;
+    private IReadOnlyList<DevCheck>? _lastDev;
+
+    /// <summary>
+    /// Claude Code·ALFA 같은 에이전트가 펫을 부를 수 있게 MCP 서버를 연다(127.0.0.1:47420, 열쇠 필요).
+    /// 포트가 이미 쓰이고 있거나 실패하면 MCP 없이 계속 돈다. 결과는 startup.log 에 남긴다.
+    /// </summary>
+    private void StartMcpServer()
+    {
+        // 검사용 실행(--save-dir 등)은 진짜 펫의 포트를 빼앗지 않게 열지 않는다.
+        if (Environment.GetCommandLineArgs().Skip(1).Any(a => a.StartsWith("--", StringComparison.Ordinal)
+                                                              && a != "--briefing")) return;
+        try
+        {
+            var router = new McpRouter(PetMcpTools.Build(this));
+            _mcp = new McpHttpHost(router, McpHttpHost.LoadOrCreateKey());
+            StartupLog.Write(_mcp.Start() ? $"mcp listening 127.0.0.1:{_mcp.Port}" : "mcp port busy - not started");
+        }
+        catch (Exception ex)
+        {
+            StartupLog.Crash("mcp", ex);
+        }
+    }
+
+    // MCP 요청은 백그라운드 스레드에서 온다. 화면은 UI 스레드에서만 만진다.
+
+    void IPetMcpHost.Say(string text, PetPose? reaction) => Dispatcher.Invoke(() =>
+    {
+        Say(text);
+        if (reaction is { } pose) React(pose);
+    });
+
+    void IPetMcpHost.Briefing(bool show) => Dispatcher.Invoke(() => SetBriefing(show));
+
+    System.Text.Json.Nodes.JsonObject IPetMcpHost.Status() => Dispatcher.Invoke(() =>
+    {
+        var s = _pet.Stats;
+        return new System.Text.Json.Nodes.JsonObject
+        {
+            ["kind"] = _pet.KindInfo.Id,
+            ["kindName"] = _pet.KindInfo.Name,
+            ["stage"] = _pet.Stage.ToString(),
+            ["variant"] = _pet.SpeciesId,
+            ["stats"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["hunger"] = Math.Round(s.Hunger),
+                ["happiness"] = Math.Round(s.Happiness),
+                ["energy"] = Math.Round(s.Energy),
+                ["health"] = Math.Round(s.Health),
+                ["cleanliness"] = Math.Round(s.Cleanliness),
+            },
+            ["sick"] = _pet.IsSick,
+            ["sulking"] = _pet.IsSulking,
+            ["asleep"] = _pet.IsAsleep,
+            ["poopsOnGround"] = _pet.PoopsOnGround,
+            ["focusHours"] = Math.Round(_pet.FocusSeconds / 3600.0, 1),
+            ["summary"] = Briefing.Summary(s),
+        };
+    });
+
+    System.Text.Json.Nodes.JsonObject IPetMcpHost.Dev() => Dispatcher.Invoke(() =>
+    {
+        var checks = _lastDev;
+        var list = new System.Text.Json.Nodes.JsonArray();
+        foreach (var c in checks ?? Array.Empty<DevCheck>())
+        {
+            list.Add(new System.Text.Json.Nodes.JsonObject
+            {
+                ["name"] = c.Name,
+                ["state"] = c.State.ToString().ToLowerInvariant(),
+                ["detail"] = c.Detail,
+            });
+        }
+
+        return new System.Text.Json.Nodes.JsonObject
+        {
+            ["checked"] = checks is not null,
+            ["summary"] = checks is null ? "아직 확인 전이에요(펫이 켜지고 20초 뒤 첫 확인)." : DevStatusRules.Summary(checks),
+            ["checks"] = list,
+        };
+    });
 
     /// <summary>
     /// 켤 때마다 Genian 이 구동 중인지 확인해 true/false 로 알린다. 자동 로그인이 켜져 있든 아니든 한다.
@@ -1069,6 +1155,7 @@ public partial class PetWindow : Window
         _notebookWindow?.Close();
         _nacCancel.Cancel();
         _devCancel.Cancel();
+        _mcp?.Dispose();
         _gameLoop?.Stop();
         _activity.Dispose();
 
