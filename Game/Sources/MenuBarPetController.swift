@@ -19,7 +19,7 @@ public final class MenuBarPetController: NSObject, ObservableObject {
 
     private let barWidth: CGFloat = 64.0
     private let barHeight: CGFloat = 22.0
-    private let spriteSize: CGFloat = 20.0
+    private let spriteSize: CGFloat = 18.0
     private var maxX: CGFloat { barWidth - spriteSize - 2 }
 
     enum RoamState {
@@ -41,6 +41,8 @@ public final class MenuBarPetController: NSObject, ObservableObject {
         item.button?.target = self
         item.button?.action = #selector(onStatusItemClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        item.button?.imageScaling = .scaleNone
+        item.button?.imagePosition = .imageOnly
         self.statusItem = item
 
         // 팝오버 초기화
@@ -126,7 +128,8 @@ public final class MenuBarPetController: NSObject, ObservableObject {
         NSGraphicsContext.current?.imageInterpolation = .none
 
         let poseName: String
-        var yOffset: CGFloat = 1.0
+        let baseY: CGFloat = (barHeight - spriteSize) / 2.0 // 상하 완벽 대칭 중앙 정렬 (2.0pt)
+        var yOffset: CGFloat = baseY
 
         switch roamState {
         case .walking:
@@ -135,8 +138,8 @@ public final class MenuBarPetController: NSObject, ObservableObject {
             poseName = "idle"
         case .happy:
             poseName = "happy"
-            // 통통 뛰는 점프 모션 (사인파)
-            yOffset += CGFloat(sin(Double(walkFrameIndex) * 0.8)) * 2.5
+            // 기분 좋을 때 살짝 통통 뛰기 (상단 천장 클리핑 방지)
+            yOffset = baseY + abs(CGFloat(sin(Double(walkFrameIndex) * 0.8))) * 1.5
         case .napping:
             poseName = "sleep"
         }
@@ -176,6 +179,7 @@ public final class MenuBarPetController: NSObject, ObservableObject {
     private func render() {
         guard let button = statusItem?.button else { return }
         let img = generateBarImage()
+        img.isTemplate = false
         button.image = img
     }
 
