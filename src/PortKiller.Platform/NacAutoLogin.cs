@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Automation;
 
@@ -57,7 +58,7 @@ public static class NacAutoLogin
             foreach (var window in GenianWindows())
             {
                 var result = TryFill(window, cred);
-                if (result is not null) return result;
+                if (result is not null) return Logged(result);
             }
 
             if (DateTime.UtcNow >= deadline) break;
@@ -66,7 +67,7 @@ public static class NacAutoLogin
 
         // Genian 창은 있는데 로그인 창으로 알아보지 못한 경우를 위해 구조를 남겨 둔다(원인을 다음에 볼 수 있게).
         if (GenianWindows().Count > 0) TryWriteDump();
-        return new NacLoginResult(NacLoginOutcome.NotFound, "로그인 창이 보이지 않았어요.");
+        return Logged(new NacLoginResult(NacLoginOutcome.NotFound, "로그인 창이 보이지 않았어요."));
     }
 
     /// <summary>
@@ -234,12 +235,12 @@ public static class NacAutoLogin
             Set(userId, cred.UserId);
             Set(password, cred.Password);
 
-            // 아이디 칸은 읽어서 들어갔는지 확인한다. 비밀번호 칸은 윈도우가 읽기를 막으므로 확인하지 않는다.
-            if (userId.TryGetCurrentPattern(ValuePattern.Pattern, out var vp)
-                && ((ValuePattern)vp).Current.Value != cred.UserId)
-            {
-                return new NacLoginResult(NacLoginOutcome.Failed, "아이디가 입력되지 않았어요.");
-            }
+            // 두 칸 모두 글자 수로 들어갔는지 확인한다(내용은 읽지 않는다). 하나라도 비어 있으면 누르지 않는다 -
+            // 빈 비밀번호로 [인증]을 누르면 실패 횟수만 늘어 계정이 잠길 수 있다.
+            if (TextLength(userId) is { } idLen && idLen != cred.UserId.Length)
+                return new NacLoginResult(NacLoginOutcome.Failed, $"아이디가 제대로 들어가지 않았어요(글자 수 {idLen}).");
+            if (TextLength(password) is { } pwLen && pwLen != cred.Password.Length)
+                return new NacLoginResult(NacLoginOutcome.Failed, $"비밀번호가 제대로 들어가지 않았어요(글자 수 {pwLen}).");
 
             ((InvokePattern)submit.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
             return new NacLoginResult(NacLoginOutcome.Submitted, "인증 버튼을 눌렀어요.");
@@ -277,15 +278,83 @@ public static class NacAutoLogin
         return null;
     }
 
+    // ---------- 글자 넣기 ----------
+    //
+    // Genian 로그인 창의 입력 칸은 UI 자동화의 값 넣기(Value)를 지원하지 않는다(실제 덤프: patterns=[]).
+    // 그래서 칸의 창 핸들에 "이 글자로 바꿔라"(WM_SETTEXT) 메시지를 보낸다. 키 입력을 흉내 내는 것이 아니라
+    // 그 칸 하나를 지정해서 넣으므로, 포커스가 다른 창으로 가 있어도 엉뚱한 곳에 입력되지 않는다.
+
+    private const int WmSetText = 0x000C;
+    private const int WmGetTextLength = 0x000E;
+    private const int ErrorAccessDenied = 5;
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr SendMessageText(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW", SetLastError = true)]
+    private static extern IntPtr SendMessagePtr(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>
+    /// 칸에 글자를 넣는다. 창 핸들이 있으면 WM_SETTEXT 를 먼저 쓴다(Genian 칸은 이것만 된다).
+    /// 핸들이 없는 칸(웹·WPF 등)만 UI 자동화의 값 넣기로 넣는다.
+    /// </summary>
     private static void Set(AutomationElement edit, string value)
     {
-        if (!edit.TryGetCurrentPattern(ValuePattern.Pattern, out var p))
+        var hwnd = new IntPtr(edit.Current.NativeWindowHandle);
+        if (hwnd != IntPtr.Zero)
         {
-            var supported = string.Join(",", edit.GetSupportedPatterns()
-                .Select(x => x.ProgrammaticName.Replace("PatternIdentifiers.Pattern", string.Empty)));
-            throw new InvalidOperationException($"값을 넣을 수 없는 칸이에요(지원: {(supported.Length == 0 ? "없음" : supported)}).");
+            if (SendMessageText(hwnd, WmSetText, IntPtr.Zero, value) != IntPtr.Zero) return;
+
+            var error = Marshal.GetLastWin32Error();
+            throw new InvalidOperationException(error == ErrorAccessDenied
+                ? "Genian 창이 관리자 권한이라 글자를 넣을 수 없어요."
+                : $"글자를 넣지 못했어요(오류 {error}).");
         }
 
-        ((ValuePattern)p).SetValue(value);
+        if (edit.TryGetCurrentPattern(ValuePattern.Pattern, out var p))
+        {
+            ((ValuePattern)p).SetValue(value);
+            return;
+        }
+
+        throw new InvalidOperationException("값을 넣을 수 없는 칸이에요(창 핸들도 값 넣기도 없음).");
+    }
+
+    /// <summary>
+    /// 칸에 들어 있는 글자 수. 내용은 읽지 않는다(창 핸들이 있으면 글자 수만 묻는다). 알 수 없으면 null.
+    /// 비밀번호 칸은 UI 자동화로 값을 읽으면 가려진 값이 나와서 쓰지 않는다.
+    /// </summary>
+    private static int? TextLength(AutomationElement edit)
+    {
+        var hwnd = new IntPtr(edit.Current.NativeWindowHandle);
+        if (hwnd != IntPtr.Zero) return (int)SendMessagePtr(hwnd, WmGetTextLength, IntPtr.Zero, IntPtr.Zero);
+
+        if (!edit.Current.IsPassword && edit.TryGetCurrentPattern(ValuePattern.Pattern, out var p))
+            return ((ValuePattern)p).Current.Value?.Length;
+
+        return null;
+    }
+
+    // ---------- 결과 기록 ----------
+
+    /// <summary>
+    /// 자동 로그인 결과를 <c>%APPDATA%\PortKillerPet\nac-log.txt</c> 에 한 줄 남긴다(시각·결과·이유).
+    /// 아이디·비밀번호는 쓰지 않는다. 말풍선은 금방 사라지므로 재부팅 뒤에 무슨 일이 있었는지 보려는 것이다.
+    /// </summary>
+    private static NacLoginResult Logged(NacLoginResult result)
+    {
+        try
+        {
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PortKillerPet", "nac-log.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.AppendAllText(path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {result.Outcome} {result.Message}{Environment.NewLine}",
+                new UTF8Encoding(true));
+        }
+        catch (Exception)
+        {
+        }
+
+        return result;
     }
 }
