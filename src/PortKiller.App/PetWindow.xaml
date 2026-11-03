@@ -51,6 +51,10 @@
                               AutomationProperties.AutomationId="AskMenuItem"
                               Header="💬  물어보기"
                               Click="AskMenu_Click" />
+                    <Separator />
+                    <MenuItem x:Name="GameMenuItem"
+                              Header="🎮  게임 / PS5 패드 &amp; 보이스"
+                              Click="GameMenu_Click" />
                     <MenuItem Header="🔐  NAC 자동 로그인 설정" Click="NacMenu_Click" />
                     <MenuItem Header="🧺  새 펫 맞이하기" Click="NewPetMenu_Click" />
                     <Separator />

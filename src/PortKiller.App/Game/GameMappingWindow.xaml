@@ -1,0 +1,425 @@
+<Window x:Class="PortKiller.App.Game.GameMappingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PortKiller Game Controls &amp; Voice Studio"
+        Width="1200" Height="740"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="False"
+        Background="#0E1217"
+        Foreground="#E2E8F0"
+        FontFamily="Segoe UI, Malgun Gothic"
+        ResizeMode="CanResizeWithGrip">
+
+    <Window.Resources>
+        <!-- 스타일: 사이버펑크/밀리터리 다크 테마 -->
+        <Style x:Key="HeaderTabBtn" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#8B9EB0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderThickness="0,0,0,2"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="#00E5FF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ActiveTabBtn" TargetType="Button" BasedOn="{StaticResource HeaderTabBtn}">
+            <Setter Property="Foreground" Value="#00E5FF" />
+            <Setter Property="BorderBrush" Value="#00E5FF" />
+        </Style>
+
+        <Style x:Key="SciFiPanel" TargetType="Border">
+            <Setter Property="Background" Value="#141B22" />
+            <Setter Property="BorderBrush" Value="#222F3E" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+
+        <Style x:Key="CalloutCard" TargetType="Border">
+            <Setter Property="Background" Value="#17212B" />
+            <Setter Property="BorderBrush" Value="#2C3D4F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10,6" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50" /> <!-- 상단 타이틀/탭 바 -->
+            <RowDefinition Height="*" />  <!-- 본문 -->
+            <RowDefinition Height="45" /> <!-- 하단 조작 바 -->
+        </Grid.RowDefinitions>
+
+        <!-- 상단 헤더 & 탭 바 -->
+        <Border Grid.Row="0" Background="#121820" BorderBrush="#1E2834" BorderThickness="0,0,0,1">
+            <Grid Margin="16,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 좌측 로고 -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="⚔️" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="PORTKILLER" FontWeight="Bold" FontSize="15" Foreground="#00E5FF" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBlock Text="GAMEPAD &amp; VOICE" FontSize="13" Foreground="#7A8D9F" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- 중앙 탭 메뉴 -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Background="#1A2430" CornerRadius="3" Padding="6,2" Margin="0,0,12,0">
+                        <TextBlock Text="L1" FontSize="11" Foreground="#7A8D9F" FontWeight="Bold" VerticalAlignment="Center" />
+                    </Border>
+                    <Button x:Name="TabControlsBtn" Content="CONTROLS (패드)" Style="{StaticResource ActiveTabBtn}" Click="TabControls_Click" />
+                    <Button x:Name="TabVoiceBtn" Content="VOICE (보이스 명령)" Style="{StaticResource HeaderTabBtn}" Click="TabVoice_Click" />
+                    <Button x:Name="TabHudBtn" Content="HUD &amp; OVERLAY" Style="{StaticResource HeaderTabBtn}" Click="TabHud_Click" />
+                    <Border Background="#1A2430" CornerRadius="3" Padding="6,2" Margin="12,0,0,0">
+                        <TextBlock Text="R1" FontSize="11" Foreground="#7A8D9F" FontWeight="Bold" VerticalAlignment="Center" />
+                    </Border>
+                </StackPanel>
+
+                <!-- 우측 닫기 버튼 -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="✕" Width="32" Height="32" Background="Transparent" Foreground="#8B9EB0" BorderThickness="0" FontSize="14" Cursor="Hand" Click="CloseBtn_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 본문 영역 (패드 탭 & 보이스 탭 전환) -->
+        <Grid Grid.Row="1" Margin="20,16">
+
+            <!-- 1. 패드 조작 탭 내용 -->
+            <Grid x:Name="ControlsTabContent">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="340" /> <!-- 좌측 설정 패널 -->
+                    <ColumnDefinition Width="*" />   <!-- 중앙 컨트롤러 다이어그램 -->
+                </Grid.ColumnDefinitions>
+
+                <!-- 좌측 설정 목록 (레퍼런스 이미지 좌측 패널 반영) -->
+                <Border Grid.Column="0" Style="{StaticResource SciFiPanel}" Padding="16">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <!-- CONTROL SETTINGS -->
+                            <TextBlock Text="CONTROL SETTINGS" FontSize="12" FontWeight="Bold" Foreground="#6C8299" Margin="0,0,0,12" />
+
+                            <Grid Margin="0,0,0,10">
+                                <TextBlock Text="X축 시점 반전" FontSize="13" Foreground="#CCD6E0" VerticalAlignment="Center"/>
+                                <CheckBox x:Name="InvertXCheck" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,10">
+                                <TextBlock Text="Y축 시점 반전" FontSize="13" Foreground="#CCD6E0" VerticalAlignment="Center"/>
+                                <CheckBox x:Name="InvertYCheck" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,10">
+                                <TextBlock Text="좌/우 스틱 스왑" FontSize="13" Foreground="#CCD6E0" VerticalAlignment="Center"/>
+                                <CheckBox x:Name="SwapSticksCheck" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,14">
+                                <TextBlock Text="터치패드 마우스 모드" FontSize="13" Foreground="#CCD6E0" VerticalAlignment="Center"/>
+                                <CheckBox x:Name="TouchpadMouseCheck" IsChecked="True" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Separator Background="#222F3E" Margin="0,6,0,14" />
+
+                            <!-- SENSITIVITY -->
+                            <TextBlock Text="SENSITIVITY &amp; DEADZONE" FontSize="12" FontWeight="Bold" Foreground="#6C8299" Margin="0,0,0,12" />
+
+                            <TextBlock Text="시점 회전 감도 (Right Stick)" FontSize="12" Foreground="#8B9EB0" />
+                            <Grid Margin="0,4,0,12">
+                                <Slider x:Name="LookSensSlider" Minimum="1" Maximum="10" Value="6" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,36,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ElementName=LookSensSlider, Path=Value, StringFormat='{}{0:0}'}" HorizontalAlignment="Right" Foreground="#00E5FF" FontWeight="Bold" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <TextBlock Text="터치패드 마우스 감도" FontSize="12" Foreground="#8B9EB0" />
+                            <Grid Margin="0,4,0,12">
+                                <Slider x:Name="TouchSensSlider" Minimum="1" Maximum="15" Value="8.5" Margin="0,0,36,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ElementName=TouchSensSlider, Path=Value, StringFormat='{}{0:0.0}'}" HorizontalAlignment="Right" Foreground="#00E5FF" FontWeight="Bold" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <TextBlock Text="스틱 데드존 (Deadzone)" FontSize="12" Foreground="#8B9EB0" />
+                            <Grid Margin="0,4,0,14">
+                                <Slider x:Name="DeadzoneSlider" Minimum="0.05" Maximum="0.30" Value="0.10" SmallChange="0.01" Margin="0,0,42,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ElementName=DeadzoneSlider, Path=Value, StringFormat='{}{0:P0}'}" HorizontalAlignment="Right" Foreground="#00E5FF" FontWeight="Bold" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <Separator Background="#222F3E" Margin="0,6,0,14" />
+
+                            <!-- OTHER -->
+                            <TextBlock Text="OTHER" FontSize="12" FontWeight="Bold" Foreground="#6C8299" Margin="0,0,0,12" />
+
+                            <Grid Margin="0,0,0,10">
+                                <TextBlock Text="듀얼센스 햅틱 진동" FontSize="13" Foreground="#CCD6E0" VerticalAlignment="Center"/>
+                                <CheckBox x:Name="VibrationCheck" IsChecked="True" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,10">
+                                <TextBlock Text="인게임 HUD 오버레이 표시" FontSize="13" Foreground="#CCD6E0" VerticalAlignment="Center"/>
+                                <CheckBox x:Name="OverlayCheck" IsChecked="True" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,4">
+                                <TextBlock Text="패드 음소거 PTT 모드" FontSize="13" Foreground="#CCD6E0" VerticalAlignment="Center"/>
+                                <CheckBox x:Name="PttCheck" IsChecked="True" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- 중앙/우측 컨트롤러 매핑 화면 (레퍼런스 이미지 스타일) -->
+                <Grid Grid.Column="1" Margin="20,0,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 상단 L1/R1 & L2/R2 콜아웃 -->
+                    <Border Grid.Row="0" HorizontalAlignment="Center" Style="{StaticResource CalloutCard}" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal" Margin="10,4">
+                            <StackPanel Margin="0,0,24,0" HorizontalAlignment="Center">
+                                <TextBlock Text="L1 / L2 BUTTONS" FontSize="11" Foreground="#6C8299" FontWeight="Bold" />
+                                <TextBlock Text="L2: [Shift 조합키]   L1: [적 타겟팅 (Tab)]" Foreground="#CCD6E0" FontSize="12" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Separator Background="#2C3D4F" Margin="0,0,24,0" Width="1" />
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="R1 / R2 BUTTONS" FontSize="11" Foreground="#6C8299" FontWeight="Bold" />
+                                <TextBlock Text="R2: [Ctrl 조합키]   R1: [스킬 슬롯 3 (3)]" Foreground="#CCD6E0" FontSize="12" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 중앙: 듀얼센스 패드 벡터 렌더링 및 콜아웃 배치 -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" /> <!-- 좌측 D-Pad 콜아웃 -->
+                            <ColumnDefinition Width="*" />   <!-- 중앙 패드 -->
+                            <ColumnDefinition Width="220" /> <!-- 우측 액션버튼 콜아웃 -->
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 좌측 콜아웃: D-PAD & CREATE -->
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="DIRECTIONAL BUTTONS" FontSize="11" FontWeight="Bold" Foreground="#6C8299" Margin="0,0,0,6" />
+                            <Border Style="{StaticResource CalloutCard}" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="▲ 비상 소모품 (9)" Foreground="#CCD6E0" FontSize="12" Margin="0,2"/>
+                                    <TextBlock Text="◀ 가방 열기 (B)" Foreground="#CCD6E0" FontSize="12" Margin="0,2"/>
+                                    <TextBlock Text="▶ 세계 지도 (M)" Foreground="#CCD6E0" FontSize="12" Margin="0,2"/>
+                                    <TextBlock Text="▼ 탈것 탑승 (Z)" Foreground="#CCD6E0" FontSize="12" Margin="0,2"/>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="CREATE / SHARE" FontSize="11" FontWeight="Bold" Foreground="#6C8299" Margin="0,6,0,4" />
+                            <Border Style="{StaticResource CalloutCard}">
+                                <TextBlock Text="캐릭터 창 (C)" Foreground="#CCD6E0" FontSize="12" />
+                            </Border>
+                        </StackPanel>
+
+                        <!-- 중앙 듀얼센스 벡터 그래픽 -->
+                        <Viewbox Grid.Column="1" Margin="10" Stretch="Uniform">
+                            <Canvas Width="400" Height="280">
+                                <!-- 패드 바디 외곽선 -->
+                                <Path Stroke="#2A3847" StrokeThickness="2" Fill="#161F28"
+                                      Data="M 70,70 C 90,40 140,50 200,50 C 260,50 310,40 330,70 C 370,140 390,240 350,265 C 330,280 300,240 280,180 C 260,185 240,190 200,190 C 160,190 140,185 120,180 C 100,240 70,280 50,265 C 10,240 30,140 70,70 Z" />
+                                
+                                <!-- 터치패드 영역 -->
+                                <Path Stroke="#00E5FF" StrokeThickness="1.5" Fill="#1C2733"
+                                      Data="M 130,55 L 270,55 L 260,135 L 140,135 Z" />
+                                <TextBlock Text="TOUCHPAD (MOUSE)" Foreground="#00E5FF" FontSize="8" FontWeight="Bold" Canvas.Left="152" Canvas.Top="90" />
+
+                                <!-- 마이크 음소거 버튼 (PTT) -->
+                                <Rectangle Canvas.Left="192" Canvas.Top="152" Width="16" Height="6" RadiusX="3" RadiusY="3" Fill="#FF9800" Stroke="#E65100" />
+
+                                <!-- 방향키 (D-Pad) -->
+                                <Path Stroke="#3E5062" StrokeThickness="1.5" Fill="#243140"
+                                      Data="M 85,95 H 95 V 85 H 105 V 95 H 115 V 105 H 105 V 115 H 95 V 105 H 85 Z" />
+
+                                <!-- 액션 버튼 4개 -->
+                                <Ellipse Canvas.Left="295" Canvas.Top="75" Width="18" Height="18" Fill="#243140" Stroke="#00E5FF" StrokeThickness="1"/>
+                                <TextBlock Text="△" Canvas.Left="300" Canvas.Top="77" FontSize="11" Foreground="#00E5FF" FontWeight="Bold"/>
+
+                                <Ellipse Canvas.Left="315" Canvas.Top="95" Width="18" Height="18" Fill="#243140" Stroke="#FF5252" StrokeThickness="1"/>
+                                <TextBlock Text="○" Canvas.Left="320" Canvas.Top="97" FontSize="11" Foreground="#FF5252" FontWeight="Bold"/>
+
+                                <Ellipse Canvas.Left="275" Canvas.Top="95" Width="18" Height="18" Fill="#243140" Stroke="#E040FB" StrokeThickness="1"/>
+                                <TextBlock Text="□" Canvas.Left="280" Canvas.Top="97" FontSize="11" Foreground="#E040FB" FontWeight="Bold"/>
+
+                                <Ellipse Canvas.Left="295" Canvas.Top="115" Width="18" Height="18" Fill="#243140" Stroke="#448AFF" StrokeThickness="1"/>
+                                <TextBlock Text="✕" Canvas.Left="300" Canvas.Top="117" FontSize="11" Foreground="#448AFF" FontWeight="Bold"/>
+
+                                <!-- 아날로그 스틱 2개 -->
+                                <Ellipse Canvas.Left="130" Canvas.Top="150" Width="44" Height="44" Fill="#1D2630" Stroke="#3E5062" StrokeThickness="2"/>
+                                <Ellipse Canvas.Left="142" Canvas.Top="162" Width="20" Height="20" Fill="#2B3947"/>
+
+                                <Ellipse Canvas.Left="226" Canvas.Top="150" Width="44" Height="44" Fill="#1D2630" Stroke="#3E5062" StrokeThickness="2"/>
+                                <Ellipse Canvas.Left="238" Canvas.Top="162" Width="20" Height="20" Fill="#2B3947"/>
+                            </Canvas>
+                        </Viewbox>
+
+                        <!-- 우측 콜아웃: ACTION BUTTONS & OPTIONS -->
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                            <TextBlock Text="ACTION BUTTONS" FontSize="11" FontWeight="Bold" Foreground="#6C8299" Margin="0,0,0,6" />
+                            <Border Style="{StaticResource CalloutCard}" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="△ 스킬 슬롯 2 (2)" Foreground="#00E5FF" FontSize="12" Margin="0,2"/>
+                                    <TextBlock Text="○ 상호작용/룻 (F)" Foreground="#FF5252" FontSize="12" Margin="0,2"/>
+                                    <TextBlock Text="□ 스킬 슬롯 1 (1)" Foreground="#E040FB" FontSize="12" Margin="0,2"/>
+                                    <TextBlock Text="✕ 점프 (Space)"   Foreground="#448AFF" FontSize="12" Margin="0,2"/>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="OPTIONS / MENU" FontSize="11" FontWeight="Bold" Foreground="#6C8299" Margin="0,6,0,4" />
+                            <Border Style="{StaticResource CalloutCard}">
+                                <TextBlock Text="게임 메뉴 (Escape)" Foreground="#CCD6E0" FontSize="12" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 하단 스틱 조작 콜아웃 -->
+                    <Border Grid.Row="2" HorizontalAlignment="Center" Style="{StaticResource CalloutCard}" Margin="0,10,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="10,4">
+                            <TextBlock Text="좌측 스틱: 이동 (L3: 자동 달리기)" Foreground="#CCD6E0" FontSize="12" Margin="0,0,24,0"/>
+                            <Separator Background="#2C3D4F" Margin="0,0,24,0" Width="1" />
+                            <TextBlock Text="우측 스틱: 시점 회전 (R3: 시점 중앙 정렬)" Foreground="#CCD6E0" FontSize="12"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!-- 2. 보이스 명령 탭 내용 -->
+            <Grid x:Name="VoiceTabContent" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="380" /> <!-- 좌측 마이크 장치 및 설정 -->
+                    <ColumnDefinition Width="*" />   <!-- 우측 보이스 명령어 표 -->
+                </Grid.ColumnDefinitions>
+
+                <!-- 좌측 마이크 장치 & 테스트 -->
+                <Border Grid.Column="0" Style="{StaticResource SciFiPanel}" Padding="18">
+                    <StackPanel>
+                        <TextBlock Text="PS5 DUALSENSE VOICE INPUT" FontSize="13" FontWeight="Bold" Foreground="#00E5FF" Margin="0,0,0,12" />
+
+                        <TextBlock Text="입력 오디오 장치 (마이크)" FontSize="12" Foreground="#8B9EB0" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="AudioDeviceCombo" Height="32" Background="#1A2430" Foreground="#E2E8F0" Margin="0,0,0,12"/>
+
+                        <Border Background="#1A232D" CornerRadius="4" Padding="12,10" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="💡 패드 내장 마이크 팁" FontSize="12" FontWeight="Bold" Foreground="#FFD166" Margin="0,0,0,4"/>
+                                <TextBlock Text="PS5 듀얼센스는 컨트롤러 자체에 마이크와 음소거 버튼이 탑재되어 있습니다. 별도의 헤드셋 없이 패드를 들고 말하면 즉각 인식됩니다." FontSize="11" Foreground="#A0B2C6" TextWrapping="Wrap" LineHeight="16"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="실시간 발화 테스트 (말해보세요)" FontSize="12" Foreground="#8B9EB0" Margin="0,0,0,6"/>
+                        <Border Background="#121820" BorderBrush="#263545" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,10">
+                            <TextBlock x:Name="LiveVoiceResultText" Text="대기 중... ('물약', '지도' 등을 말해보세요)" Foreground="#53E3A6" FontSize="12" TextWrapping="Wrap" />
+                        </Border>
+
+                        <TextBlock Text="PTT (Push-To-Talk) 작동 규칙" FontSize="12" FontWeight="Bold" Foreground="#6C8299" Margin="0,8,0,6"/>
+                        <RadioButton x:Name="PttMuteRadio" Content="패드 음소거 버튼을 눌렀을 때만 발화 (추천)" Foreground="#CCD6E0" IsChecked="True" Margin="0,4"/>
+                        <RadioButton x:Name="PttContinuousRadio" Content="상시 청취 (소음 없는 환경)" Foreground="#CCD6E0" Margin="0,4"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 우측 보이스 명령어 매핑 표 -->
+                <Border Grid.Column="1" Style="{StaticResource SciFiPanel}" Margin="16,0,0,0" Padding="16">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,12">
+                            <TextBlock Text="와우 클래식 음성 매핑 사전 (Voice Dictionary)" FontSize="14" FontWeight="Bold" Foreground="#CCD6E0" VerticalAlignment="Center"/>
+                            <TextBlock Text="블리자드 정책 준수: 1 발화 = 1 회 단일 키 입력" FontSize="11" Foreground="#7A8D9F" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <DataGrid x:Name="VoiceCommandsGrid" Grid.Row="1"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  Background="Transparent"
+                                  RowBackground="#16202B"
+                                  AlternatingRowBackground="#1A2532"
+                                  BorderThickness="0"
+                                  Foreground="#E2E8F0"
+                                  GridLinesVisibility="Horizontal"
+                                  HorizontalGridLinesBrush="#222F3E">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="음성 명령어" Binding="{Binding Phrase}" Width="140" FontWeight="Bold" />
+                                <DataGridTextColumn Header="대상 키" Binding="{Binding TargetVirtualKey, StringFormat='0x{0:X2}'}" Width="80" />
+                                <DataGridTextColumn Header="카테고리" Binding="{Binding Category}" Width="90" />
+                                <DataGridTextColumn Header="동작 설명" Binding="{Binding Description}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                            <Button Content="+ 단어 추가" Padding="12,6" Background="#1F2A38" Foreground="#00E5FF" BorderThickness="0" Margin="0,0,8,0" Cursor="Hand" Click="AddVoiceWord_Click"/>
+                            <Button Content="기본값 복원" Padding="12,6" Background="#1F2A38" Foreground="#8B9EB0" BorderThickness="0" Cursor="Hand" Click="ResetVoiceWords_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- 3. HUD 및 애드온 탭 내용 -->
+            <Grid x:Name="HudTabContent" Visibility="Collapsed">
+                <Border Style="{StaticResource SciFiPanel}" Padding="20">
+                    <StackPanel MaxWidth="700" HorizontalAlignment="Left">
+                        <TextBlock Text="인게임 HUD 오버레이 &amp; 와우 애드온 연동" FontSize="15" FontWeight="Bold" Foreground="#00E5FF" Margin="0,0,0,16" />
+
+                        <TextBlock Text="1. PortKiller 실시간 투명 오버레이 HUD" FontSize="13" FontWeight="Bold" Foreground="#CCD6E0" Margin="0,0,0,6" />
+                        <TextBlock Text="와우 화면 위에 클릭 통과(Transparent Click-Through) 레이어를 띄워 음성 인식 결과, 패드 배터리 잔량, PTT 상태를 지연 없이 표시합니다." FontSize="12" Foreground="#8B9EB0" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <Button x:Name="ToggleOverlayBtn" Content="🎮 실시간 HUD 오버레이 띄우기 / 테스트" Background="#1F2A38" Foreground="#00E5FF" BorderBrush="#00E5FF" BorderThickness="1" Padding="14,8" HorizontalAlignment="Left" Cursor="Hand" Click="ToggleOverlay_Click" Margin="0,0,0,20"/>
+
+                        <Separator Background="#222F3E" Margin="0,0,0,20" />
+
+                        <TextBlock Text="2. 와우 클래식 전용 애드온 'ConsolePort' 연동 안내" FontSize="13" FontWeight="Bold" Foreground="#CCD6E0" Margin="0,0,0,6" />
+                        <TextBlock Text="PortKiller의 기본 키 매핑은 콘솔포트(ConsolePort) 애드온의 표준 규격과 호환됩니다. 와우 설치 폴더의 WTF 설정 파일에 본 설정을 내보내거나 적용할 수 있습니다." FontSize="12" Foreground="#8B9EB0" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <Button Content="📁 ConsolePort 호환 키바인딩 내보내기" Background="#1F2A38" Foreground="#CCD6E0" BorderThickness="0" Padding="14,8" HorizontalAlignment="Left" Cursor="Hand" Click="ExportConsolePort_Click"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- 하단 액션 바 -->
+        <Border Grid.Row="2" Background="#121820" BorderBrush="#1E2834" BorderThickness="0,1,0,0">
+            <Grid Margin="16,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 좌측 크레딧 / 버전 -->
+                <TextBlock Grid.Column="0" Text="PORTKILLER GAME STUDIO v1.0 (PS5 DUALSENSE READY)" FontSize="11" Foreground="#55697D" VerticalAlignment="Center"/>
+
+                <!-- 우측 초기화 / 저장 버튼 -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="△ 초기값 복원" Background="Transparent" Foreground="#8B9EB0" BorderThickness="0" Padding="12,6" Margin="0,0,12,0" Cursor="Hand" Click="ResetDefaults_Click" />
+                    <Button Content="○ 저장 및 적용" Background="#00E5FF" Foreground="#0E1217" FontWeight="Bold" BorderThickness="0" Padding="16,6" Cursor="Hand" Click="SaveAndApply_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
