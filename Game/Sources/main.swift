@@ -9,6 +9,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // 1. macOS 상태창(메뉴바) 도트 스타일 펫 즉시 기동 및 로밍 시작
+        MenuBarPetController.shared.start()
+
+        // 2. 메인 스튜디오 창 준비 (상태창 팝오버에서 '스튜디오 열기'로 표시 가능)
         let contentView = ContentView()
 
         let window = NSWindow(
@@ -20,21 +24,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.title = "PortKiller Gamepad & Voice Studio (macOS Native)"
         window.contentView = NSHostingView(rootView: contentView)
-        window.orderFrontRegardless()
-        window.makeKeyAndOrderFront(nil)
         self.window = window
 
-        NSApp.activate(ignoringOtherApps: true)
-
-        // macOS 바탕화면 펫 즉시 띄우기
-        MacPetWindowManager.shared.showPet()
-
-        // 화면 스냅샷 자동 생성 (사용자 채팅창 미리보기용)
+        // 화면 스냅샷 자동 생성 (상태창 도트 펫 포함)
         savePreview()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        // 스튜디오 창을 닫아도 바탕화면 펫은 계속 유지
+        // 스튜디오 창을 닫아도 상태창 도트 펫은 메뉴바에서 계속 상주
         return false
     }
 }

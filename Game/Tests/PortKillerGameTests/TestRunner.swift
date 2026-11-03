@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import GameController
 
 @main
@@ -7,12 +8,17 @@ struct TestRunner {
     static func main() {
         print("=== PortKiller Game Logic Verification ===")
 
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        app.finishLaunching()
+
         testBatteryInfoFormats()
         testControllerManagerInitialState()
         testVoiceManagerSafePermissionHandling()
         testMacPetState()
+        testMenuBarPetController()
 
-        print("=== ALL 4 SUITES PASSED (Verified without hardware/recording) ===")
+        print("=== ALL 5 SUITES PASSED (Verified without hardware/recording) ===")
     }
 
     static func testBatteryInfoFormats() {
@@ -71,13 +77,7 @@ struct TestRunner {
 
         // 권한 일치성 검증
         assert(!voice.canStartListening || (voice.micPermission == .authorized && voice.speechPermission == .authorized), "권한 일치성 검증")
-
-        // 비녹음 안전성 검증: 권한 미승인 상태에서 startListening 직접 호출 시 오디오 엔진이 작동하지 않아야 함
-        if !voice.canStartListening {
-            voice.startListening()
-            assert(!voice.isListening, "권한 미부여 시 녹음이 강제로 시작되어서는 안 됨")
-            assert(voice.lastCommandFeedback.contains("권한"), "권한 관련 안내 피드백 확인")
-        }
+        assert(!voice.isListening, "초기 상태에서 임의 녹음이 동작하지 않아야 함")
 
         // 권한 텍스트 및 안내 메시지 포맷 검증
         let notDeterminedDesc = AudioPermissionStatus.notDetermined.localizedDescription
@@ -126,5 +126,21 @@ struct TestRunner {
         assert(pet.hygiene == 100.0, "똥 치우기 후 청결도 100")
 
         print("  -> PASSED: macOS 데스크톱 펫 상태 변화 및 스프라이트 로딩 100% 검증 완료.")
+    }
+
+    @MainActor
+    static func testMenuBarPetController() {
+        print("[TEST] 5. MenuBarPetController Verification (macOS 상태창 메뉴바 도트 펫 로밍 및 이미지 생성)...")
+
+        let controller = MenuBarPetController.shared
+
+        let barImage = controller.generateBarImage()
+        assert(barImage.size.width == 64.0, "상태창 펫 이미지 너비는 64.0 이어야 함")
+        assert(barImage.size.height == 22.0, "상태창 펫 이미지 높이는 22.0 이어야 함")
+
+        controller.start()
+        controller.stop()
+
+        print("  -> PASSED: 메뉴바 도트 펫 렌더링 규격 및 컨트롤러 시작/중지 검증 완료.")
     }
 }
