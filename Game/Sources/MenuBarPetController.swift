@@ -181,11 +181,15 @@ public final class MenuBarPetController: NSObject, ObservableObject {
 
     private func loadRawSprite(pose: String) -> NSImage? {
         let candidateDirs = [
+            "assets/sprites/duck",
+            "../assets/sprites/duck",
+            "/Users/aiso/Monster/github/PortKiller/assets/sprites/duck",
+            Bundle.main.resourcePath.map { "\($0)/assets/sprites/duck" } ?? "",
             "assets/sprites/chars/day/child",
             "../assets/sprites/chars/day/child",
             "/Users/aiso/Monster/github/PortKiller/assets/sprites/chars/day/child"
         ]
-        for dir in candidateDirs {
+        for dir in candidateDirs where !dir.isEmpty {
             let path = "\(dir)/\(pose).png"
             if FileManager.default.fileExists(atPath: path), let img = NSImage(contentsOfFile: path) {
                 return img
@@ -230,7 +234,7 @@ struct MenuBarPetPopoverView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("🐾 ALFA 도트 펫")
+                    Text("🦆 디버깅 러버덕 (mac-air)")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.primary)
 

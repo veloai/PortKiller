@@ -7,11 +7,11 @@ import SwiftUI
 public final class MacPetState: ObservableObject {
     public static let shared = MacPetState()
 
-    @Published public var species: String = "day" // "day" (레서판다/다람쥐 갈색), "evening"
-    @Published public var stage: String = "child"  // "baby", "child", "adult"
-    @Published public var pose: String = "idle"   // "idle", "walk1", "walk2", "happy"
+    @Published public var species: String = "duck"
+    @Published public var stage: String = ""
+    @Published public var pose: String = "idle"   // "idle", "walk1", "walk2", "happy", "shock", "sleep"
 
-    @Published public var speechMessage: String? = "mac-air 개발 환경 정상 가동 중 🐾"
+    @Published public var speechMessage: String? = "꽥! 버그 없는 평화로운 개발 환경 가동 중 🦆"
     @Published public var devStatusSummary: String = "Docker & ALFA 백엔드 정상"
 
     private var speechTimer: Timer?
@@ -25,25 +25,37 @@ public final class MacPetState: ObservableObject {
 
     /// 스프라이트 이미지 파일 경로 조회
     public func resolveCurrentSprite() -> NSImage? {
-        return loadSpriteImage(subpath: "\(species)/\(stage)/\(pose)")
+        let duckDirs = [
+            "assets/sprites/duck",
+            "../assets/sprites/duck",
+            "/Users/aiso/Monster/github/PortKiller/assets/sprites/duck",
+            Bundle.main.resourcePath.map { "\($0)/assets/sprites/duck" } ?? ""
+        ]
+        for dir in duckDirs where !dir.isEmpty {
+            let path = "\(dir)/\(pose).png"
+            if FileManager.default.fileExists(atPath: path), let img = NSImage(contentsOfFile: path) {
+                return img
+            }
+        }
+        for dir in duckDirs where !dir.isEmpty {
+            let fallback = "\(dir)/idle.png"
+            if FileManager.default.fileExists(atPath: fallback), let img = NSImage(contentsOfFile: fallback) {
+                return img
+            }
+        }
+        return loadLegacySprite(subpath: "\(species)/\(stage)/\(pose)")
     }
 
-    private func loadSpriteImage(subpath: String) -> NSImage? {
+    private func loadLegacySprite(subpath: String) -> NSImage? {
         let candidateDirs = [
             "assets/sprites/chars",
             "../assets/sprites/chars",
             "/Users/aiso/Monster/github/PortKiller/assets/sprites/chars",
             Bundle.main.resourcePath.map { "\($0)/assets/sprites/chars" } ?? ""
         ]
-        for dir in candidateDirs {
+        for dir in candidateDirs where !dir.isEmpty {
             let fullPath = "\(dir)/\(subpath).png"
             if FileManager.default.fileExists(atPath: fullPath), let img = NSImage(contentsOfFile: fullPath) {
-                return img
-            }
-        }
-        for dir in candidateDirs {
-            let fallback = "\(dir)/day/child/idle.png"
-            if FileManager.default.fileExists(atPath: fallback), let img = NSImage(contentsOfFile: fallback) {
                 return img
             }
         }

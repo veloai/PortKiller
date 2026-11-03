@@ -95,8 +95,7 @@ struct TestRunner {
         print("[TEST] 4. MacPetState Verification (macOS 데스크톱 펫 상태 및 스프라이트 로딩)...")
 
         let pet = MacPetState.shared
-        assert(pet.species == "day", "초기 종은 day 여야 함")
-        assert(pet.stage == "child", "초기 단계는 child 여야 함")
+        assert(pet.species == "duck", "초기 종은 duck (러버덕) 이어야 함")
         assert(pet.pose == "idle" || pet.pose == "walk1" || pet.pose == "walk2", "초기 포즈 유효성")
 
         // 스프라이트 리졸브 검증
