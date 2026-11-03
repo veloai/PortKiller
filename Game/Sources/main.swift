@@ -1,5 +1,9 @@
 import AppKit
 import SwiftUI
+import GameController
+
+// WoW 등 다른 게임 창이 활성화되어 있을 때도 패드 입력 백그라운드 수신 보장
+GCController.shouldMonitorBackgroundEvents = true
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?

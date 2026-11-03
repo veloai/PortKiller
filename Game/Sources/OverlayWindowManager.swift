@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 /// macOS 최상위 플로팅 반투명 HUD 창 매니저
+@MainActor
 public final class OverlayWindowManager: ObservableObject {
     public static let shared = OverlayWindowManager()
 
@@ -57,8 +58,8 @@ public struct OverlayHudView: View {
                 Text("🎮").font(.body)
                 Text(controller.isConnected ? "PS5 듀얼센스" : "패드 대기")
                     .font(.caption).bold().foregroundColor(.white)
-                Text("(\(Int(controller.batteryLevel * 100))%)")
-                    .font(.caption2).foregroundColor(.green)
+                Text("[\(controller.batteryInfo.displayText)]")
+                    .font(.caption2).foregroundColor(controller.isConnected ? .green : .gray)
             }
 
             Divider().frame(height: 18).background(Color.gray)

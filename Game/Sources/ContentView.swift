@@ -4,11 +4,12 @@ import GameController
 public struct ContentView: View {
     @ObservedObject var controller = ControllerManager.shared
     @ObservedObject var voice = VoiceManager.shared
+    @ObservedObject var simulator = InputSimulator.shared
 
     @State private var selectedTab = 0 // 0: Controls, 1: Voice, 2: HUD
-    @State private var lookSensitivity: Double = 6.0
-    @State private var touchSensitivity: Double = 8.5
-    @State private var deadzone: Double = 0.10
+    @State private var lookSensitivity: Double = 14.0
+    @State private var touchSensitivity: Double = 16.0
+    @State private var deadzone: Double = 0.22
     @State private var invertY: Bool = false
     @State private var isPttEnabled: Bool = true
     @State private var isVibrationOn: Bool = true
@@ -38,7 +39,7 @@ public struct ContentView: View {
             // 하단 조작 바
             bottomActionBar
         }
-        .frame(minWidth: 1100, minHeight: 720)
+        .frame(minWidth: 1100, minHeight: 740)
         .background(Color(red: 0.06, green: 0.08, blue: 0.10))
         .foregroundColor(Color(white: 0.90))
     }
@@ -78,14 +79,39 @@ public struct ContentView: View {
 
             Spacer()
 
-            // 연결 상태 배지
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(controller.isConnected ? Color.green : Color.orange)
-                    .frame(width: 8, height: 8)
-                Text(controller.isConnected ? "PS5 듀얼센스 연결됨" : "패드 대기 중 (PS버튼 클릭)")
-                    .font(.caption).bold()
-                    .foregroundColor(controller.isConnected ? .green : .orange)
+            // 연결 상태 및 실제 배터리 상태 표시 (가짜 잔량 방지)
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(controller.isConnected ? Color.green : Color.orange)
+                        .frame(width: 8, height: 8)
+                    Text(controller.isConnected ? "PS5 듀얼센스 연결됨" : "패드 대기 중 (PS버튼 클릭)")
+                        .font(.caption).bold()
+                        .foregroundColor(controller.isConnected ? .green : .orange)
+                }
+
+                Divider().frame(height: 14).background(Color.gray)
+
+                // 실제 배터리 잔량
+                HStack(spacing: 4) {
+                    Text(controller.isConnected ? "🔋" : "🔌")
+                        .font(.caption2)
+                    Text(controller.batteryInfo.displayText)
+                        .font(.caption).bold()
+                        .foregroundColor(controller.isConnected ? .cyan : .gray)
+                }
+
+                Divider().frame(height: 14).background(Color.gray)
+
+                // 가상 키보드/마우스 입력 변환 상태
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(simulator.isEnabled ? Color.cyan : Color.gray)
+                        .frame(width: 6, height: 6)
+                    Text(simulator.isEnabled ? "⌨️🖱️ 가상 키마 연동" : "가상 키마 꺼짐")
+                        .font(.caption2).bold()
+                        .foregroundColor(simulator.isEnabled ? .cyan : .gray)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
@@ -97,9 +123,40 @@ public struct ContentView: View {
         .background(Color(red: 0.08, green: 0.10, blue: 0.13))
     }
 
-    // MARK: - 좌측 설정 패널 (레퍼런스 이미지 좌측 반영)
+    // MARK: - 좌측 설정 패널
     private var leftSettingsPanel: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // HYBRID INPUT EMULATOR
+            Text("HYBRID INPUT EMULATOR")
+                .font(.caption).bold().foregroundColor(.cyan)
+
+            if !simulator.isAccessibilityTrusted {
+                Button(action: {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                        NSWorkspace.shared.open(url)
+                    }
+                    simulator.promptAccessibilityIfNeeded()
+                }) {
+                    HStack {
+                        Text("⚠️ 손쉬운 사용 권한 필요 (클릭)")
+                            .font(.caption2).bold()
+                            .foregroundColor(.yellow)
+                    }
+                    .padding(6)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.yellow.opacity(0.18))
+                    .cornerRadius(6)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.yellow, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+
+            settingToggleRow(title: "가상 키보드/마우스 활성", isOn: $simulator.isEnabled)
+            settingToggleRow(title: "좌측 스틱 WASD 이동", isOn: $simulator.enableStickWASD)
+            settingToggleRow(title: "WoW 전용 입력 제한", isOn: $simulator.targetOnlyWoW)
+
+            Divider().background(Color(white: 0.16)).padding(.vertical, 4)
+
             // CONTROL SETTINGS
             Text("CONTROL SETTINGS")
                 .font(.caption).bold().foregroundColor(Color(red: 0.45, green: 0.55, blue: 0.65))
@@ -112,34 +169,34 @@ public struct ContentView: View {
             Divider().background(Color(white: 0.16)).padding(.vertical, 4)
 
             // SENSITIVITY
-            Text("SENSITIVITY")
+            Text("SENSITIVITY & DEADZONE")
                 .font(.caption).bold().foregroundColor(Color(red: 0.45, green: 0.55, blue: 0.65))
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("Look Sensitivity").font(.caption).foregroundColor(Color(white: 0.75))
+                    Text("Mouse Look Speed (스틱)").font(.caption).foregroundColor(Color(white: 0.75))
                     Spacer()
-                    Text("\(Int(lookSensitivity))").font(.caption).bold().foregroundColor(.cyan)
+                    Text("\(Int(simulator.mouseSpeed))").font(.caption).bold().foregroundColor(.cyan)
                 }
-                Slider(value: $lookSensitivity, in: 1...10, step: 1)
+                Slider(value: Binding(get: { Double(simulator.mouseSpeed) }, set: { simulator.mouseSpeed = Float($0) }), in: 4...30, step: 1)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("Touchpad Multiplier").font(.caption).foregroundColor(Color(white: 0.75))
+                    Text("Touchpad Sensitivity (터치패드)").font(.caption).foregroundColor(Color(white: 0.75))
                     Spacer()
-                    Text(String(format: "%.1f", touchSensitivity)).font(.caption).bold().foregroundColor(.cyan)
+                    Text("\(Int(simulator.touchpadMultiplier))").font(.caption).bold().foregroundColor(.cyan)
                 }
-                Slider(value: $touchSensitivity, in: 1...15)
+                Slider(value: Binding(get: { Double(simulator.touchpadMultiplier) }, set: { simulator.touchpadMultiplier = Float($0) }), in: 200...1500, step: 25)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Stick Deadzone").font(.caption).foregroundColor(Color(white: 0.75))
                     Spacer()
-                    Text("\(Int(deadzone * 100))%").font(.caption).bold().foregroundColor(.cyan)
+                    Text("\(Int(simulator.stickDeadzone * 100))%").font(.caption).bold().foregroundColor(.cyan)
                 }
-                Slider(value: $deadzone, in: 0.05...0.30)
+                Slider(value: Binding(get: { Double(simulator.stickDeadzone) }, set: { simulator.stickDeadzone = Float($0) }), in: 0.05...0.40)
             }
 
             Divider().background(Color(white: 0.16)).padding(.vertical, 4)
@@ -149,7 +206,26 @@ public struct ContentView: View {
                 .font(.caption).bold().foregroundColor(Color(red: 0.45, green: 0.55, blue: 0.65))
 
             settingToggleRow(title: "진동 (Haptics)", isOn: $isVibrationOn)
-            settingToggleRow(title: "패드 마이크 PTT", isOn: $isPttEnabled)
+            settingToggleRow(title: "패드 마이크 PTT", isOn: $controller.isPttEnabled)
+
+            Divider().background(Color(white: 0.16)).padding(.vertical, 4)
+
+            // DEVICE & BATTERY INFO (가짜 잔량 방지)
+            Text("DEVICE & BATTERY")
+                .font(.caption).bold().foregroundColor(Color(red: 0.45, green: 0.55, blue: 0.65))
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("컨트롤러:").font(.caption2).foregroundColor(.gray)
+                    Text(controller.controllerName).font(.caption2).bold().lineLimit(1)
+                }
+                HStack {
+                    Text("배터리 상태:").font(.caption2).foregroundColor(.gray)
+                    Text(controller.batteryInfo.displayText)
+                        .font(.caption2).bold()
+                        .foregroundColor(controller.isConnected ? .green : .orange)
+                }
+            }
 
             Spacer()
         }
@@ -177,18 +253,84 @@ public struct ContentView: View {
 
     // MARK: - 중앙/우측 컨트롤러 다이어그램 & 콜아웃
     private var centerControllerDiagram: some View {
-        VStack(spacing: 14) {
-            // 상단 L1/R1 & L2/R2 콜아웃
-            HStack(spacing: 24) {
-                calloutCard(title: "L1 / L2 BUTTONS", subtitle: "L2: [Aim / Shift]   L1: [Tab 타겟팅]")
+        VStack(spacing: 12) {
+            // 상단 L1/R1 & L2/R2 동적 콜아웃 (실제 입력 연동)
+            HStack(spacing: 20) {
+                // L1 & L2 상태
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("L1 / L2 BUTTONS & TRIGGER")
+                        .font(.caption2).bold().foregroundColor(Color(red: 0.45, green: 0.55, blue: 0.65))
+                    HStack(spacing: 12) {
+                        HStack(spacing: 6) {
+                            Text("L1")
+                                .font(.caption2).bold()
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(controller.buttonL1 ? Color.cyan : Color(white: 0.2))
+                                .foregroundColor(controller.buttonL1 ? .black : .white)
+                                .cornerRadius(4)
+                            Text("Tab 타겟팅")
+                                .font(.caption2)
+                                .foregroundColor(controller.buttonL1 ? .cyan : Color(white: 0.7))
+                        }
+                        Divider().frame(height: 14).background(Color.gray)
+                        HStack(spacing: 6) {
+                            Text("L2")
+                                .font(.caption2).bold()
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(controller.leftTrigger > 0.1 ? Color.cyan : Color(white: 0.2))
+                                .foregroundColor(controller.leftTrigger > 0.1 ? .black : .white)
+                                .cornerRadius(4)
+                            Text("Aim / Shift: \(Int(controller.leftTrigger * 100))%")
+                                .font(.caption2).bold()
+                                .foregroundColor(controller.leftTrigger > 0.1 ? .cyan : Color(white: 0.7))
+                        }
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Color(white: 0.10)).cornerRadius(6)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(white: 0.16), lineWidth: 1))
+
                 Spacer()
-                calloutCard(title: "R1 / R2 BUTTONS", subtitle: "R2: [Shoot / Ctrl]   R1: [스킬 슬롯 3]")
+
+                // R1 & R2 상태
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("R1 / R2 BUTTONS & TRIGGER")
+                        .font(.caption2).bold().foregroundColor(Color(red: 0.45, green: 0.55, blue: 0.65))
+                    HStack(spacing: 12) {
+                        HStack(spacing: 6) {
+                            Text("R1")
+                                .font(.caption2).bold()
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(controller.buttonR1 ? Color.cyan : Color(white: 0.2))
+                                .foregroundColor(controller.buttonR1 ? .black : .white)
+                                .cornerRadius(4)
+                            Text("스킬 슬롯 3")
+                                .font(.caption2)
+                                .foregroundColor(controller.buttonR1 ? .cyan : Color(white: 0.7))
+                        }
+                        Divider().frame(height: 14).background(Color.gray)
+                        HStack(spacing: 6) {
+                            Text("R2")
+                                .font(.caption2).bold()
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(controller.rightTrigger > 0.1 ? Color.cyan : Color(white: 0.2))
+                                .foregroundColor(controller.rightTrigger > 0.1 ? .black : .white)
+                                .cornerRadius(4)
+                            Text("Shoot / Ctrl: \(Int(controller.rightTrigger * 100))%")
+                                .font(.caption2).bold()
+                                .foregroundColor(controller.rightTrigger > 0.1 ? .cyan : Color(white: 0.7))
+                        }
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Color(white: 0.10)).cornerRadius(6)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(white: 0.16), lineWidth: 1))
             }
 
             // 중앙 컨트롤러 일러스트 & 좌우 버튼 콜아웃
             HStack(alignment: .center, spacing: 16) {
                 // 좌측 콜아웃 (D-Pad)
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("DIRECTIONAL BUTTONS").font(.caption2).bold().foregroundColor(.gray)
                     VStack(alignment: .leading, spacing: 6) {
                         buttonLabelRow(btn: "▲", label: "비상 물약 (9)", active: controller.dpadUp)
@@ -201,9 +343,22 @@ public struct ContentView: View {
                     .cornerRadius(6)
 
                     Text("TOUCHPAD").font(.caption2).bold().foregroundColor(.gray).padding(.top, 4)
-                    HStack {
-                        Text("마우스 트랙패드 & 좌클릭")
-                            .font(.caption2).foregroundColor(controller.touchpadPressed ? .cyan : .gray)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("트랙패드 & 좌클릭")
+                            .font(.caption2).bold().foregroundColor(controller.touchpadPressed ? .cyan : .white)
+                        HStack {
+                            Text(String(format: "X:%.2f Y:%.2f", controller.touchpadX, controller.touchpadY))
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundColor(.cyan)
+                            Spacer()
+                            Text(controller.touchpadPressed ? "클릭" : "대기")
+                                .font(.system(size: 8, weight: .bold))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(controller.touchpadPressed ? Color.green : Color(white: 0.2))
+                                .foregroundColor(controller.touchpadPressed ? .black : .gray)
+                                .cornerRadius(3)
+                        }
                     }
                     .padding(8)
                     .background(Color(white: 0.10))
@@ -213,15 +368,31 @@ public struct ContentView: View {
 
                 Spacer()
 
-                // 중앙 PS5 듀얼센스 벡터 그래픽
+                // 중앙 PS5 듀얼센스 벡터 그래픽 (L1/L2/R1/R2, D-Pad, 액션 버튼, 스틱 완전 반영)
                 ZStack {
-                    // 컨트롤러 바디 실루엣
+                    // 1. 트리거 (L2 / R2) - 패드 본체 뒤쪽 상단에 배치
+                    HStack(spacing: 210) {
+                        // L2 트리거 시각화
+                        triggerVisual(name: "L2", value: controller.leftTrigger)
+                        // R2 트리거 시각화
+                        triggerVisual(name: "R2", value: controller.rightTrigger)
+                    }
+                    .offset(y: -110)
+
+                    // 2. 범퍼 (L1 / R1) - 패드 어깨 부위에 배치
+                    HStack(spacing: 210) {
+                        bumperVisual(name: "L1", isPressed: controller.buttonL1)
+                        bumperVisual(name: "R1", isPressed: controller.buttonR1)
+                    }
+                    .offset(y: -80)
+
+                    // 3. 컨트롤러 바디 실루엣
                     DualSenseBodyShape()
                         .fill(Color(red: 0.10, green: 0.13, blue: 0.17))
                         .overlay(DualSenseBodyShape().stroke(Color(red: 0.22, green: 0.28, blue: 0.35), lineWidth: 2))
                         .frame(width: 360, height: 230)
 
-                    // 터치패드 영역
+                    // 4. 터치패드 영역
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color(red: 0.14, green: 0.18, blue: 0.23))
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(controller.touchpadPressed ? Color.cyan : Color(white: 0.25), lineWidth: 1.5))
@@ -234,33 +405,38 @@ public struct ContentView: View {
                                 .offset(y: -42)
                         )
 
-                    // 마이크 음소거 버튼
+                    // 5. 마이크 음소거 버튼
                     Capsule()
-                        .fill(Color.orange)
+                        .fill(voice.isMicMuted ? Color.orange : Color(red: 0.2, green: 0.8, blue: 0.4))
                         .frame(width: 16, height: 6)
                         .offset(y: 8)
+                        .overlay(
+                            Capsule()
+                                .stroke(controller.buttonMute ? Color.white : Color.clear, lineWidth: 1.5)
+                                .offset(y: 8)
+                        )
 
-                    // 방향키 (D-Pad)
-                    dpadCross
+                    // 6. 방향키 (D-Pad) - 4방향 키 입력 실시간 반영
+                    dpadInteractiveCluster
                         .offset(x: -88, y: -18)
 
-                    // 액션 버튼 4개
+                    // 7. 액션 버튼 4개 (△, ○, □, ✕) - 실시간 입력 반영
                     actionButtonsCluster
                         .offset(x: 88, y: -18)
 
-                    // 아날로그 스틱 2개
+                    // 8. 아날로그 스틱 2개 (L3/R3)
                     HStack(spacing: 50) {
                         stickVisual(x: controller.leftStickX, y: controller.leftStickY, isClicked: controller.buttonL3)
                         stickVisual(x: controller.rightStickX, y: controller.rightStickY, isClicked: controller.buttonR3)
                     }
                     .offset(y: 38)
                 }
-                .frame(width: 370, height: 240)
+                .frame(width: 380, height: 260)
 
                 Spacer()
 
                 // 우측 콜아웃 (Action Buttons)
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("ACTION BUTTONS").font(.caption2).bold().foregroundColor(.gray)
                     VStack(alignment: .leading, spacing: 6) {
                         buttonLabelRow(btn: "△", label: "스킬 슬롯 2 (2)", active: controller.buttonTriangle, color: .cyan)
@@ -286,38 +462,113 @@ public struct ContentView: View {
 
             // 하단 스틱 콜아웃
             HStack(spacing: 24) {
-                Text("좌측 스틱: 이동 (L3: 자동 달리기)")
-                    .font(.caption2).foregroundColor(Color(white: 0.7))
+                Text("좌측 스틱: 이동 (L3 클릭: 자동 달리기)")
+                    .font(.caption2).foregroundColor(controller.buttonL3 ? .cyan : Color(white: 0.7))
                 Divider().frame(height: 12).background(Color.gray)
-                Text("우측 스틱: 시점 회전 (R3: 시점 리셋)")
-                    .font(.caption2).foregroundColor(Color(white: 0.7))
+                Text("우측 스틱: 시점 회전 (R3 클릭: 시점 리셋)")
+                    .font(.caption2).foregroundColor(controller.buttonR3 ? .cyan : Color(white: 0.7))
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 6)
+            .padding(.vertical, 5)
             .background(Color(white: 0.10))
             .cornerRadius(6)
 
-            // 하단 실시간 보이스 명령 박스
+            // 하단 실시간 보이스 명령 및 권한 가이드 박스
             voiceSectionBox
         }
     }
 
-    private var dpadCross: some View {
-        ZStack {
-            Rectangle().fill(Color(white: 0.18)).frame(width: 14, height: 42).cornerRadius(3)
-            Rectangle().fill(Color(white: 0.18)).frame(width: 42, height: 14).cornerRadius(3)
+    // MARK: - 트리거 (L2/R2) 시각화 위젯
+    private func triggerVisual(name: String, value: Float) -> some View {
+        VStack(spacing: 2) {
+            Text("\(name) \(Int(value * 100))%")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(value > 0.05 ? .cyan : .gray)
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color(white: 0.15))
+                    .frame(width: 50, height: 20)
+                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(value > 0.05 ? Color.cyan : Color(white: 0.25), lineWidth: 1))
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.cyan)
+                    .frame(width: 50, height: max(0, CGFloat(value) * 20))
+            }
         }
     }
 
+    // MARK: - 범퍼 (L1/R1) 시각화 위젯
+    private func bumperVisual(name: String, isPressed: Bool) -> some View {
+        Text(name)
+            .font(.system(size: 10, weight: .bold))
+            .frame(width: 54, height: 16)
+            .background(isPressed ? Color.cyan : Color(white: 0.22))
+            .foregroundColor(isPressed ? .black : .white)
+            .cornerRadius(3)
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(isPressed ? Color.cyan : Color(white: 0.40), lineWidth: 1))
+            .shadow(color: isPressed ? Color.cyan.opacity(0.8) : Color.clear, radius: 4)
+    }
+
+    // MARK: - 방향키 (D-Pad) 4방향 독립 시각화 클러스터
+    private var dpadInteractiveCluster: some View {
+        ZStack {
+            // 중앙 허브
+            Circle().fill(Color(white: 0.14)).frame(width: 14, height: 14)
+
+            // Up (▲)
+            dpadArm(icon: "▲", isPressed: controller.dpadUp)
+                .offset(y: -16)
+
+            // Down (▼)
+            dpadArm(icon: "▼", isPressed: controller.dpadDown)
+                .offset(y: 16)
+
+            // Left (◀)
+            dpadArm(icon: "◀", isPressed: controller.dpadLeft)
+                .offset(x: -16)
+
+            // Right (▶)
+            dpadArm(icon: "▶", isPressed: controller.dpadRight)
+                .offset(x: 16)
+        }
+    }
+
+    private func dpadArm(icon: String, isPressed: Bool) -> some View {
+        Text(icon)
+            .font(.system(size: 11, weight: .bold))
+            .frame(width: 18, height: 18)
+            .background(isPressed ? Color.cyan : Color(white: 0.25))
+            .foregroundColor(isPressed ? .black : .white)
+            .cornerRadius(3)
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(isPressed ? Color.cyan : Color(white: 0.45), lineWidth: 1))
+            .shadow(color: isPressed ? Color.cyan.opacity(0.8) : Color.clear, radius: 4)
+    }
+
+    // MARK: - 액션 버튼 클러스터
     private var actionButtonsCluster: some View {
         ZStack {
-            Circle().fill(controller.buttonTriangle ? Color.cyan : Color(white: 0.22)).frame(width: 16, height: 16).offset(y: -14)
-            Circle().fill(controller.buttonCircle ? Color.red : Color(white: 0.22)).frame(width: 16, height: 16).offset(x: 14)
-            Circle().fill(controller.buttonSquare ? Color.purple : Color(white: 0.22)).frame(width: 16, height: 16).offset(x: -14)
-            Circle().fill(controller.buttonCross ? Color.blue : Color(white: 0.22)).frame(width: 16, height: 16).offset(y: 14)
+            actionBtn(label: "△", isPressed: controller.buttonTriangle, color: .cyan)
+                .offset(y: -16)
+            actionBtn(label: "○", isPressed: controller.buttonCircle, color: .red)
+                .offset(x: 16)
+            actionBtn(label: "□", isPressed: controller.buttonSquare, color: .purple)
+                .offset(x: -16)
+            actionBtn(label: "✕", isPressed: controller.buttonCross, color: .blue)
+                .offset(y: 16)
         }
     }
 
+    private func actionBtn(label: String, isPressed: Bool, color: Color) -> some View {
+        Text(label)
+            .font(.system(size: 9, weight: .bold))
+            .frame(width: 18, height: 18)
+            .background(isPressed ? color : Color(white: 0.22))
+            .foregroundColor(isPressed ? .black : color)
+            .cornerRadius(9)
+            .overlay(Circle().stroke(color, lineWidth: 1))
+            .shadow(color: isPressed ? color.opacity(0.8) : Color.clear, radius: 4)
+    }
+
+    // MARK: - 아날로그 스틱 시각화
     private func stickVisual(x: Float, y: Float, isClicked: Bool) -> some View {
         ZStack {
             Circle().fill(Color(white: 0.13)).frame(width: 52, height: 52)
@@ -325,6 +576,7 @@ public struct ContentView: View {
             Circle().fill(isClicked ? Color.cyan : Color(white: 0.85))
                 .frame(width: 20, height: 20)
                 .offset(x: CGFloat(x) * 16, y: CGFloat(-y) * 16)
+                .shadow(color: isClicked ? Color.cyan : Color.clear, radius: 4)
         }
     }
 
@@ -342,33 +594,69 @@ public struct ContentView: View {
         }
     }
 
-    private func calloutCard(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.caption2).bold().foregroundColor(Color(red: 0.45, green: 0.55, blue: 0.65))
-            Text(subtitle).font(.caption).bold().foregroundColor(Color(white: 0.85))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color(white: 0.10))
-        .cornerRadius(6)
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(white: 0.16), lineWidth: 1))
-    }
-
-    // MARK: - 하단 실시간 보이스 명령 박스
+    // MARK: - 하단 실시간 보이스 명령 및 권한 가이드 박스
     private var voiceSectionBox: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("🎙️ 실시간 보이스 명령").font(.caption).bold()
+                HStack(spacing: 6) {
+                    Text("🎙️").font(.body)
+                    Text("실시간 보이스 명령").font(.caption).bold()
+                }
+
                 Spacer()
-                Button(action: { voice.toggleListening() }) {
-                    Text(voice.isListening ? "마이크 끄기" : "마이크 듣기 시작")
-                        .font(.caption).bold()
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(voice.isListening ? Color.red : Color.cyan)
-                        .foregroundColor(voice.isListening ? .white : .black)
-                        .cornerRadius(6)
-                }.buttonStyle(.plain)
+
+                // 권한 배지 상태
+                HStack(spacing: 8) {
+                    Text("마이크: \(voice.micPermission.localizedDescription)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(voice.micPermission == .authorized ? Color.green.opacity(0.2) : (voice.micPermission == .notDetermined ? Color.blue.opacity(0.2) : Color.orange.opacity(0.2)))
+                        .foregroundColor(voice.micPermission == .authorized ? .green : (voice.micPermission == .notDetermined ? .cyan : .orange))
+                        .cornerRadius(4)
+
+                    Text("음성인식: \(voice.speechPermission.localizedDescription)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(voice.speechPermission == .authorized ? Color.green.opacity(0.2) : (voice.speechPermission == .notDetermined ? Color.blue.opacity(0.2) : Color.orange.opacity(0.2)))
+                        .foregroundColor(voice.speechPermission == .authorized ? .green : (voice.speechPermission == .notDetermined ? .cyan : .orange))
+                        .cornerRadius(4)
+                }
+
+                Spacer()
+
+                // 마이크 음소거 / 활성화 토글 버튼
+                Button(action: {
+                    voice.toggleMicMute()
+                }) {
+                    HStack(spacing: 6) {
+                        Text(voice.isMicMuted ? "🔇 마이크 켜기 (음소거 해제)" : "🎙️ 마이크 끄기 (음소거)")
+                    }
+                    .font(.caption).bold()
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(voice.isMicMuted ? Color.orange : Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
             }
+
+            // 권한 안내 및 피드백 텍스트
+            HStack(spacing: 8) {
+                Text(voice.lastCommandFeedback)
+                    .font(.caption).bold()
+                    .foregroundColor(.cyan)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Text(voice.permissionGuideMessage)
+                    .font(.system(size: 10))
+                    .foregroundColor(.gray)
+                    .lineLimit(1)
+            }
+            .padding(6)
+            .background(Color(white: 0.08))
+            .cornerRadius(4)
 
             // 볼륨 VU 미터
             GeometryReader { geo in
@@ -378,18 +666,9 @@ public struct ContentView: View {
                         .frame(width: geo.size.width * CGFloat(voice.inputVolume))
                 }
             }
-            .frame(height: 5)
-
-            // 피드백 텍스트
-            Text(voice.lastCommandFeedback)
-                .font(.caption).bold()
-                .foregroundColor(.cyan)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color(white: 0.08))
-                .cornerRadius(6)
+            .frame(height: 4)
         }
-        .padding(12)
+        .padding(10)
         .background(Color(red: 0.08, green: 0.10, blue: 0.13))
         .cornerRadius(8)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(white: 0.16), lineWidth: 1))

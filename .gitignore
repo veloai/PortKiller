@@ -11,5 +11,6 @@ obj/
 # macOS / Swift build artifacts
 .build/
 *.app/
+.swiftpm/
 Game/PortKillerGame
 .DS_Store
