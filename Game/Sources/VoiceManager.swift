@@ -248,6 +248,7 @@ public final class VoiceManager: NSObject, ObservableObject {
 
     public func startListening() {
         guard canStartListening else {
+            lastCommandFeedback = "⚠️ 마이크/음성 권한 미부여 상태입니다 (설정 필요)"
             if micPermission == .notDetermined || speechPermission == .notDetermined {
                 requestPermissions()
             }

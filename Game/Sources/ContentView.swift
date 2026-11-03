@@ -682,16 +682,32 @@ public struct ContentView: View {
 
             Spacer()
 
-            Button(action: {
-                OverlayWindowManager.shared.toggleOverlay()
-            }) {
-                Text("🎮 실시간 HUD 오버레이 띄우기")
+            HStack(spacing: 10) {
+                Button(action: {
+                    MacPetWindowManager.shared.togglePet()
+                }) {
+                    HStack(spacing: 4) {
+                        Text("🐾")
+                        Text("바탕화면 펫 토글")
+                    }
                     .font(.caption).bold()
-                    .padding(.horizontal, 14).padding(.vertical, 6)
-                    .background(Color.cyan)
-                    .foregroundColor(.black)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Color(red: 0.2, green: 0.7, blue: 0.5))
+                    .foregroundColor(.white)
                     .cornerRadius(6)
-            }.buttonStyle(.plain)
+                }.buttonStyle(.plain)
+
+                Button(action: {
+                    OverlayWindowManager.shared.toggleOverlay()
+                }) {
+                    Text("🎮 실시간 HUD 오버레이 띄우기")
+                        .font(.caption).bold()
+                        .padding(.horizontal, 14).padding(.vertical, 6)
+                        .background(Color.cyan)
+                        .foregroundColor(.black)
+                        .cornerRadius(6)
+                }.buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 18)
         .frame(height: 44)

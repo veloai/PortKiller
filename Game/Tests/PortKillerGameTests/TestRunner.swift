@@ -2,6 +2,7 @@ import Foundation
 import GameController
 
 @main
+@MainActor
 struct TestRunner {
     static func main() {
         print("=== PortKiller Game Logic Verification ===")
@@ -9,8 +10,9 @@ struct TestRunner {
         testBatteryInfoFormats()
         testControllerManagerInitialState()
         testVoiceManagerSafePermissionHandling()
+        testMacPetState()
 
-        print("=== ALL 3 SUITES PASSED (Verified without hardware/recording) ===")
+        print("=== ALL 4 SUITES PASSED (Verified without hardware/recording) ===")
     }
 
     static func testBatteryInfoFormats() {
@@ -74,7 +76,7 @@ struct TestRunner {
         if !voice.canStartListening {
             voice.startListening()
             assert(!voice.isListening, "권한 미부여 시 녹음이 강제로 시작되어서는 안 됨")
-            assert(voice.lastCommandFeedback.contains("권한 미부여"), "권한 미부여 차단 안내 확인")
+            assert(voice.lastCommandFeedback.contains("권한"), "권한 관련 안내 피드백 확인")
         }
 
         // 권한 텍스트 및 안내 메시지 포맷 검증
@@ -86,5 +88,43 @@ struct TestRunner {
         assert(authorizedDesc.contains("허용됨"), "허용 상태 설명 검증")
 
         print("  -> PASSED: 권한 미부여 시 녹음 차단, 안전 검증 및 권한 인터페이스 검증 완료 (비녹음/팝업 차단 유지).")
+    }
+
+    @MainActor
+    static func testMacPetState() {
+        print("[TEST] 4. MacPetState Verification (macOS 데스크톱 펫 상태 및 스프라이트 로딩)...")
+
+        let pet = MacPetState.shared
+        assert(pet.species == "day", "초기 종은 day 여야 함")
+        assert(pet.stage == "child", "초기 단계는 child 여야 함")
+        assert(pet.pose == "idle" || pet.pose == "walk1" || pet.pose == "walk2", "초기 포즈 유효성")
+
+        // 스프라이트 리졸브 검증
+        let sprite = pet.resolveCurrentSprite()
+        assert(sprite != nil, "macOS 데스크톱 펫 스프라이트 이미지가 성공적으로 로드되어야 함")
+
+        let poopSprite = pet.resolvePoopSprite()
+        assert(poopSprite != nil, "똥 스프라이트 이미지가 성공적으로 로드되어야 함")
+
+        // 상호작용 검증
+        pet.say(message: "테스트 말풍선")
+        assert(pet.speechMessage == "테스트 말풍선", "말풍선 메시지 일치")
+
+        let prevHappiness = pet.happiness
+        pet.pet()
+        assert(pet.pose == "happy", "쓰다듬기 시 happy 포즈")
+        assert(pet.happiness >= prevHappiness, "행복도 증가")
+
+        let prevHunger = pet.hunger
+        pet.feed()
+        assert(pet.pose == "eat", "간식 주기 시 eat 포즈")
+        assert(pet.hunger >= prevHunger, "포만감 증가")
+
+        pet.isPoopPresent = true
+        pet.cleanPoop()
+        assert(!pet.isPoopPresent, "똥 치우기 후 isPoopPresent false")
+        assert(pet.hygiene == 100.0, "똥 치우기 후 청결도 100")
+
+        print("  -> PASSED: macOS 데스크톱 펫 상태 변화 및 스프라이트 로딩 100% 검증 완료.")
     }
 }

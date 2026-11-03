@@ -26,12 +26,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
 
+        // macOS 바탕화면 펫 즉시 띄우기
+        MacPetWindowManager.shared.showPet()
+
         // 화면 스냅샷 자동 생성 (사용자 채팅창 미리보기용)
         savePreview()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return true
+        // 스튜디오 창을 닫아도 바탕화면 펫은 계속 유지
+        return false
     }
 }
 
