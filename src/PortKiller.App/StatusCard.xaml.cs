@@ -40,6 +40,12 @@ public partial class StatusCard : UserControl
     private Pet? _pet;
     private int _hover = -1;
 
+    /// <summary>개발 환경 확인 결과와 그 줄들. 마우스로 짚을 수 있게 수치 막대 뒤에 이어 센다.</summary>
+    private IReadOnlyList<DevCheck> _dev = Array.Empty<DevCheck>();
+    private readonly List<Grid> _devGrids = new();
+
+    private IEnumerable<Grid> AllRows => _rowGrids.Concat(_devGrids);
+
     /// <summary>✕ 를 눌렀다. 브리핑을 끝내 달라는 뜻이다.</summary>
     public event Action? CloseRequested;
 
@@ -89,9 +95,10 @@ public partial class StatusCard : UserControl
     public void Pointer(Point p)
     {
         var hover = -1;
-        for (var i = 0; i < _rowGrids.Count; i++)
+        var rows = AllRows.ToList();
+        for (var i = 0; i < rows.Count; i++)
         {
-            var g = _rowGrids[i];
+            var g = rows[i];
             if (g.ActualHeight <= 0) continue;
             var top = g.TranslatePoint(new Point(0, 0), this).Y - 3;
             if (p.Y >= top && p.Y <= top + g.ActualHeight + 6) { hover = i; break; }
@@ -113,16 +120,70 @@ public partial class StatusCard : UserControl
 
     private void Highlight()
     {
-        for (var i = 0; i < _rowGrids.Count; i++)
-            _rowGrids[i].Background = i == _hover ? Hex("#33FFFFFF") : Brushes.Transparent;
+        var rows = AllRows.ToList();
+        for (var i = 0; i < rows.Count; i++)
+            rows[i].Background = i == _hover ? Hex("#33FFFFFF") : Brushes.Transparent;
     }
 
     private void RefreshCaption()
     {
         if (_pet is null) return;
-        Caption.Text = _hover >= 0
-            ? Briefing.Line(Topics[_hover], _defs[_hover].Read(_pet))
+        if (_hover >= 0 && _hover < _defs.Length)
+        {
+            Caption.Text = Briefing.Line(Topics[_hover], _defs[_hover].Read(_pet));
+            return;
+        }
+
+        var devIndex = _hover - _defs.Length;
+        if (_hover >= 0 && devIndex < _dev.Count)
+        {
+            Caption.Text = DevStatusRules.Describe(_dev[devIndex]);
+            return;
+        }
+
+        // 아무것도 안 짚었을 때: 개발 환경에 문제가 있으면 그게 먼저다.
+        Caption.Text = _dev.Any(c => c.State == DevState.Down)
+            ? DevStatusRules.Summary(_dev)
             : Briefing.Summary(_pet.Stats);
+    }
+
+    /// <summary>개발 환경 확인 결과를 카드에 그린다(1분에 한 번 정도 불린다).</summary>
+    public void UpdateDev(IReadOnlyList<DevCheck> checks)
+    {
+        _dev = checks;
+        DevRows.Children.Clear();
+        _devGrids.Clear();
+
+        foreach (var c in checks)
+        {
+            var grid = new Grid { Margin = new Thickness(0, 0, 0, 3), Background = Brushes.Transparent };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var color = c.State switch { DevState.Ok => Good, DevState.Down => Bad, _ => Hex("#FF6B7399") };
+            var dot = new TextBlock { Text = "●", Foreground = color, FontSize = 10, VerticalAlignment = VerticalAlignment.Center };
+            var name = new TextBlock { Text = c.Name, Foreground = Hex("#FFCBD2F0"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+            var state = new TextBlock
+            {
+                Text = c.State switch { DevState.Ok => "정상", DevState.Down => "멈춤", _ => "확인 불가" },
+                Foreground = color,
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+
+            Grid.SetColumn(name, 1);
+            Grid.SetColumn(state, 2);
+            grid.Children.Add(dot);
+            grid.Children.Add(name);
+            grid.Children.Add(state);
+            DevRows.Children.Add(grid);
+            _devGrids.Add(grid);
+        }
+
+        DevBox.Visibility = checks.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Highlight();
+        RefreshCaption();
     }
 
     public void Update(Pet pet, bool userAway)

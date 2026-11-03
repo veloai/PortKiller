@@ -45,6 +45,12 @@
                 </Border>
             </StackPanel>
 
+            <!-- 개발 환경: Docker·컨테이너·로컬 서버. 확인 결과가 오면 보인다 -->
+            <StackPanel x:Name="DevBox" Margin="0,10,0,0" Visibility="Collapsed">
+                <TextBlock Text="🛠 개발 환경" Foreground="#FF9AA3C7" FontSize="11" Margin="0,0,0,4" />
+                <StackPanel x:Name="DevRows" />
+            </StackPanel>
+
             <!-- 레서판다의 한마디: 마우스가 짚는 항목에 맞춰 바뀐다 -->
             <Border Margin="0,10,0,0" CornerRadius="8" Padding="9,6" Background="#FF262B45">
                 <TextBlock x:Name="Caption" Foreground="#FFEDEFFB" FontSize="12" TextWrapping="Wrap" />

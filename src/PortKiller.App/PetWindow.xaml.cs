@@ -57,6 +57,7 @@ public partial class PetWindow : Window
     private readonly AiSettingsStore _aiStore = new();
     private readonly NacCredentialStore _nac = new();
     private readonly CancellationTokenSource _nacCancel = new();
+    private readonly CancellationTokenSource _devCancel = new();
 
     /// <summary>
     /// 앱 전체가 하나만 쓴다. 물어볼 때마다 새로 만들면 연결이 쌓여 소켓이 마른다.
@@ -135,6 +136,7 @@ public partial class PetWindow : Window
         StartGameLoop();
         OpenNotebookIfRequested();
         _ = ReportGenianOnStartAsync();
+        _ = WatchDevStatusAsync();
         _ = AutoLoginNacOnStartAsync();
     }
 
@@ -281,6 +283,45 @@ public partial class PetWindow : Window
         };
         _nacSettingsWindow.Closed += (_, _) => _nacSettingsWindow = null;
         _nacSettingsWindow.Show();
+    }
+
+    // ---------- 개발 환경 상태 ----------
+
+    /// <summary>처음 확인까지 기다리는 시간. 로그인 직후엔 Docker 가 아직 뜨는 중이라 바로 보면 다 멈춤으로 나온다.</summary>
+    private static readonly TimeSpan DevFirstDelay = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan DevInterval = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Docker·컨테이너·로컬 서버가 돌고 있는지 1분마다 본다(<see cref="DevStatusProbe"/>).
+    /// 결과는 브리핑 카드의 "개발 환경" 칸에 그리고, 멈추거나 되살아나면 펫이 말한다.
+    /// </summary>
+    private async Task WatchDevStatusAsync()
+    {
+        var specs = await Task.Run(DevStatusProbe.LoadSpecs);
+        IReadOnlyList<DevCheck>? last = null;
+
+        try
+        {
+            await Task.Delay(DevFirstDelay, _devCancel.Token);
+            while (!_devCancel.IsCancellationRequested)
+            {
+                var now = await Task.Run(() => DevStatusProbe.Run(specs));
+                var changes = DevStatusRules.Diff(last, now);
+                DebugPanel.UpdateDev(now);
+
+                foreach (var change in changes)
+                {
+                    Say(DevStatusRules.Line(change));
+                    React(change.To == DevState.Down ? PetPose.Sulk : PetPose.Happy);
+                }
+
+                last = now;
+                await Task.Delay(DevInterval, _devCancel.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     /// <summary>
@@ -1027,6 +1068,7 @@ public partial class PetWindow : Window
         _store.Save(BuildSave());
         _notebookWindow?.Close();
         _nacCancel.Cancel();
+        _devCancel.Cancel();
         _gameLoop?.Stop();
         _activity.Dispose();
 
