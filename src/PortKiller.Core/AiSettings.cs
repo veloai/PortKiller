@@ -5,6 +5,9 @@ public enum AiProvider
 {
     Gemini = 0,
     OpenAi = 1,
+
+    /// <summary>이 PC 의 ALFA 백엔드 비서(Alorys). 열쇠 대신 ALFA 로그인 세션을 쓴다.</summary>
+    Alfa = 2,
 }
 
 /// <summary>
@@ -39,17 +42,32 @@ public sealed class AiSettings
 
     public string Persona { get; set; } = DefaultPersona;
 
+    /// <summary>ALFA 백엔드 주소. 이 PC(127.0.0.1)만 받는다.</summary>
+    public string AlfaBaseUrl { get; set; } = AlfaChatClient.DefaultBaseUrl;
+
     /// <summary>한 번 물어볼 때 기다릴 시간. 넘으면 끊고 사람이 읽을 수 있는 말로 알린다.</summary>
     public int TimeoutSeconds { get; set; } = 60;
 
     /// <summary>지금 고른 곳의 모델 이름. 비어 있으면 기본값으로 돌아간다.</summary>
     public string ModelFor(AiProvider provider)
     {
+        if (provider == AiProvider.Alfa) return "Alorys";
         var name = provider == AiProvider.OpenAi ? OpenAiModel : GeminiModel;
         if (!string.IsNullOrWhiteSpace(name)) return name.Trim();
         return provider == AiProvider.OpenAi ? DefaultOpenAiModel : DefaultGeminiModel;
     }
 
-    public static string DisplayName(AiProvider provider)
-        => provider == AiProvider.OpenAi ? "OpenAI" : "Gemini";
+    public static string DisplayName(AiProvider provider) => provider switch
+    {
+        AiProvider.OpenAi => "OpenAI",
+        AiProvider.Alfa => "ALFA",
+        _ => "Gemini",
+    };
+
+    /// <summary>
+    /// 기다릴 시간. ALFA 는 서버가 90초까지 생각하므로 그보다 조금 더 기다린다 —
+    /// 먼저 끊으면 답이 오는데도 "시간 초과"로 보인다.
+    /// </summary>
+    public int TimeoutFor(AiProvider provider)
+        => provider == AiProvider.Alfa ? Math.Max(TimeoutSeconds, 100) : TimeoutSeconds;
 }

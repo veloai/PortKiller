@@ -54,7 +54,52 @@
                         <RadioButton x:Name="UseOpenAi"
                                      AutomationProperties.AutomationId="UseOpenAi"
                                      GroupName="Provider"
-                                     Content="OpenAI" />
+                                     Content="OpenAI"
+                                     Margin="0,0,0,6" />
+                        <RadioButton x:Name="UseAlfa"
+                                     AutomationProperties.AutomationId="UseAlfa"
+                                     GroupName="Provider"
+                                     Content="ALFA 백엔드 (이 PC의 Alorys 비서)" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ALFA -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="ALFA 로그인" />
+                        <TextBlock x:Name="AlfaState"
+                                   AutomationProperties.AutomationId="AlfaState"
+                                   Style="{StaticResource Hint}"
+                                   Text="로그인하지 않음" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="ALFA 주인 계정으로 로그인하면 7일짜리 열쇠만 받아 암호화해 둡니다. 비밀번호는 저장하지 않아요." />
+                        <TextBlock Style="{StaticResource Hint}" Text="아이디" />
+                        <TextBox x:Name="AlfaUser"
+                                 AutomationProperties.AutomationId="AlfaUser"
+                                 Padding="8,6"
+                                 Margin="0,0,0,8" />
+                        <TextBlock Style="{StaticResource Hint}" Text="비밀번호" />
+                        <PasswordBox x:Name="AlfaPassword"
+                                     AutomationProperties.AutomationId="AlfaPassword"
+                                     Padding="8,6"
+                                     Margin="0,0,0,8" />
+                        <Button x:Name="AlfaLoginButton"
+                                AutomationProperties.AutomationId="AlfaLoginButton"
+                                HorizontalAlignment="Left"
+                                Padding="16,5"
+                                Margin="0,0,0,10"
+                                Content="ALFA 로그인"
+                                Click="AlfaLoginButton_Click" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="패스키 전용 계정이면: 웹에서 로그인한 뒤 열쇠(alfa_token)를 여기에 붙여 넣고 [저장]" />
+                        <PasswordBox x:Name="AlfaToken"
+                                     AutomationProperties.AutomationId="AlfaToken"
+                                     Padding="8,6"
+                                     Margin="0,0,0,8" />
+                        <TextBlock Style="{StaticResource Hint}" Text="주소 (이 PC만)" />
+                        <TextBox x:Name="AlfaBaseUrl"
+                                 AutomationProperties.AutomationId="AlfaBaseUrl"
+                                 Padding="8,6" />
                     </StackPanel>
                 </Border>
 
@@ -155,6 +200,7 @@
                            Margin="12,0"
                            Foreground="#FF2F4F2A"
                            FontSize="11"
+                           TextWrapping="Wrap"
                            Text="" />
 
                 <Button x:Name="SaveButton"

@@ -225,9 +225,12 @@ public partial class PetWindow : Window, IPetMcpHost
         // 인자를 안 주면 만들어지지도 않는다.
         if (Environment.GetCommandLineArgs().Contains("--stub-ai")) return new StubAiClient();
 
-        return _ai.Provider == AiProvider.OpenAi
-            ? new OpenAiChatClient(_http, () => _keys.Get(AiProvider.OpenAi), _ai)
-            : new GeminiChatClient(_http, () => _keys.Get(AiProvider.Gemini), _ai);
+        return _ai.Provider switch
+        {
+            AiProvider.OpenAi => new OpenAiChatClient(_http, () => _keys.Get(AiProvider.OpenAi), _ai),
+            AiProvider.Alfa => new AlfaChatClient(_http, () => _keys.Get(AiProvider.Alfa), _ai),
+            _ => new GeminiChatClient(_http, () => _keys.Get(AiProvider.Gemini), _ai),
+        };
     }
 
     /// <summary>검사에서만 쓰는 가짜. 네트워크를 만지지 않는다.</summary>
@@ -271,7 +274,7 @@ public partial class PetWindow : Window, IPetMcpHost
             return;
         }
 
-        _aiSettingsWindow = new AiSettingsWindow(_ai, _keys, _aiStore);
+        _aiSettingsWindow = new AiSettingsWindow(_ai, _keys, _aiStore, _http);
         _aiSettingsWindow.Saved += () => _askWindow?.RefreshProviderLabel();
         _aiSettingsWindow.Closed += (_, _) => _aiSettingsWindow = null;
         _aiSettingsWindow.Show();

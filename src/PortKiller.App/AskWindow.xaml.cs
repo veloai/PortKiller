@@ -56,7 +56,9 @@ public partial class AskWindow : Window
         else
         {
             ProviderLabel.Text = $"{name} · {model}";
-            StatusText.Text = $"{name} 열쇠가 아직 없어요. 트레이 메뉴의 'AI 설정'에서 등록해 주세요.";
+            StatusText.Text = _settings.Provider == AiProvider.Alfa
+                ? "ALFA 로그인이 아직 없어요. 트레이 메뉴의 'AI 설정'에서 로그인해 주세요."
+                : $"{name} 열쇠가 아직 없어요. 트레이 메뉴의 'AI 설정'에서 등록해 주세요.";
         }
     }
 
@@ -85,7 +87,7 @@ public partial class AskWindow : Window
         var prompt = PromptBox.Text.Trim();
         if (prompt.Length == 0) return;
 
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Clamp(_settings.TimeoutSeconds, 5, 300)));
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Clamp(_settings.TimeoutFor(_settings.Provider), 5, 300)));
         _inFlight = cts;
 
         SetBusy(true);

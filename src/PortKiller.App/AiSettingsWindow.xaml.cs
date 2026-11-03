@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http;
 using System.Windows;
 using PortKiller.Core;
 using PortKiller.Platform;
@@ -20,17 +21,19 @@ public partial class AiSettingsWindow : Window
     private readonly AiSettings _settings;
     private readonly ApiKeyStore _keys;
     private readonly AiSettingsStore _store;
+    private readonly HttpClient _http;
 
     /// <summary>저장했을 때. 물어보기 창의 안내줄을 다시 그리게 하려고 알린다.</summary>
     public event Action? Saved;
 
-    public AiSettingsWindow(AiSettings settings, ApiKeyStore keys, AiSettingsStore store)
+    public AiSettingsWindow(AiSettings settings, ApiKeyStore keys, AiSettingsStore store, HttpClient http)
     {
         InitializeComponent();
 
         _settings = settings;
         _keys = keys;
         _store = store;
+        _http = http;
 
         Loaded += (_, _) => Fill();
     }
@@ -39,6 +42,8 @@ public partial class AiSettingsWindow : Window
     {
         UseGemini.IsChecked = _settings.Provider == AiProvider.Gemini;
         UseOpenAi.IsChecked = _settings.Provider == AiProvider.OpenAi;
+        UseAlfa.IsChecked = _settings.Provider == AiProvider.Alfa;
+        AlfaBaseUrl.Text = _settings.AlfaBaseUrl;
 
         GeminiModel.Text = _settings.ModelFor(AiProvider.Gemini);
         OpenAiModel.Text = _settings.ModelFor(AiProvider.OpenAi);
@@ -59,13 +64,25 @@ public partial class AiSettingsWindow : Window
         OpenAiState.Text = _keys.Has(AiProvider.OpenAi)
             ? "등록됨 (바꾸려면 새로 적으세요. 비워 두면 그대로 둡니다)"
             : "등록되지 않음";
+        AlfaState.Text = _keys.Has(AiProvider.Alfa)
+            ? "로그인됨 (7일 뒤 끝나면 다시 로그인하세요)"
+            : "로그인하지 않음";
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            _settings.Provider = UseOpenAi.IsChecked == true ? AiProvider.OpenAi : AiProvider.Gemini;
+            _settings.Provider = UseAlfa.IsChecked == true ? AiProvider.Alfa
+                : UseOpenAi.IsChecked == true ? AiProvider.OpenAi
+                : AiProvider.Gemini;
+            var alfaUrl = AlfaBaseUrl.Text.Trim();
+            if (alfaUrl.Length > 0 && !AlfaChatClient.IsLocal(alfaUrl))
+            {
+                SaveState.Text = "ALFA 주소는 이 PC(127.0.0.1)만 돼요.";
+                return;
+            }
+            _settings.AlfaBaseUrl = alfaUrl.Length == 0 ? AlfaChatClient.DefaultBaseUrl : alfaUrl;
             _settings.GeminiModel = GeminiModel.Text.Trim();
             _settings.OpenAiModel = OpenAiModel.Text.Trim();
             _settings.Persona = string.IsNullOrWhiteSpace(Persona.Text)
@@ -77,9 +94,11 @@ public partial class AiSettingsWindow : Window
             // 열쇠가 지워지면 왜 안 되는지 알 길이 없다. 지우기는 아래 버튼이 따로 있다.
             SaveKeyIfTyped(AiProvider.Gemini, GeminiKey.Password);
             SaveKeyIfTyped(AiProvider.OpenAi, OpenAiKey.Password);
+            SaveKeyIfTyped(AiProvider.Alfa, AlfaToken.Password);
 
             GeminiKey.Clear();
             OpenAiKey.Clear();
+            AlfaToken.Clear();
             RefreshKeyState();
 
             SaveState.Text = "저장했어요.";
@@ -88,6 +107,43 @@ public partial class AiSettingsWindow : Window
         catch (Exception)
         {
             SaveState.Text = "저장하지 못했어요. 폴더 권한을 확인해 주세요.";
+        }
+    }
+
+    /// <summary>
+    /// ALFA 에 로그인해 열쇠만 받아 둔다. 비밀번호 칸은 성공·실패와 상관없이 바로 비운다.
+    /// </summary>
+    private async void AlfaLoginButton_Click(object sender, RoutedEventArgs e)
+    {
+        var user = AlfaUser.Text;
+        var password = AlfaPassword.Password;
+        AlfaPassword.Clear();
+
+        var url = AlfaBaseUrl.Text.Trim();
+        if (url.Length == 0) url = AlfaChatClient.DefaultBaseUrl;
+
+        AlfaLoginButton.IsEnabled = false;
+        SaveState.Text = "ALFA 에 로그인하는 중…";
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var token = await AlfaChatClient.LoginAsync(_http, url, user, password, cts.Token);
+            _keys.Set(AiProvider.Alfa, token);
+            RefreshKeyState();
+            SaveState.Text = "ALFA 에 로그인했어요. 위에서 'ALFA 백엔드'를 고르고 저장하세요.";
+            Saved?.Invoke();
+        }
+        catch (AiException ex)
+        {
+            SaveState.Text = ex.Message;
+        }
+        catch (Exception)
+        {
+            SaveState.Text = "ALFA 에 로그인하지 못했어요.";
+        }
+        finally
+        {
+            AlfaLoginButton.IsEnabled = true;
         }
     }
 
@@ -109,6 +165,7 @@ public partial class AiSettingsWindow : Window
         _keys.ClearAll();
         GeminiKey.Clear();
         OpenAiKey.Clear();
+        AlfaToken.Clear();
         RefreshKeyState();
         SaveState.Text = "열쇠를 지웠어요.";
         Saved?.Invoke();
