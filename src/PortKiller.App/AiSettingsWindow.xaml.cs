@@ -1,5 +1,4 @@
 using System.IO;
-using System.Net.Http;
 using System.Windows;
 using PortKiller.Core;
 using PortKiller.Platform;
@@ -21,38 +20,44 @@ public partial class AiSettingsWindow : Window
     private readonly AiSettings _settings;
     private readonly ApiKeyStore _keys;
     private readonly AiSettingsStore _store;
-    private readonly HttpClient _http;
-    private readonly Func<(string Name, string Species)> _pet;
-
-    /// <summary>연동 요청 뒤 승인을 기다리는 동안 키 받아 가기를 되풀이한다. 창을 닫으면 멈춘다.</summary>
-    private CancellationTokenSource? _linking;
+    private readonly AlfaLinkController _link;
+    private readonly Action _openLink;
 
     /// <summary>저장했을 때. 물어보기 창의 안내줄을 다시 그리게 하려고 알린다.</summary>
     public event Action? Saved;
 
-    public AiSettingsWindow(AiSettings settings, ApiKeyStore keys, AiSettingsStore store, HttpClient http,
-                            Func<(string Name, string Species)> pet)
+    /// <param name="openLink">[연동 관리…] — ALFA 연동 창을 연다. 연동 요청·대기·끊기는 그 창과 펫 본체가 한다.</param>
+    internal AiSettingsWindow(AiSettings settings, ApiKeyStore keys, AiSettingsStore store, AlfaLinkController link, Action openLink)
     {
         InitializeComponent();
 
         _settings = settings;
         _keys = keys;
         _store = store;
-        _http = http;
-        _pet = pet;
+        _link = link;
+        _openLink = openLink;
 
         Loaded += (_, _) => Fill();
-        Closed += (_, _) => _linking?.Cancel();
+        _link.Changed += OnLinkChanged;
+        Closed += (_, _) => _link.Changed -= OnLinkChanged;
     }
+
+    private void OnLinkChanged(PetLinkState before, PetLinkState after) => RefreshAlfaLine();
+
+    /// <summary><c>제공자: ALFA ▦ LINKED</c> 한 줄.</summary>
+    public void RefreshAlfaLine()
+    {
+        var s = _link.State;
+        AlfaLine.Text = $"제공자: ALFA {s.Glyph} {s.MenuWord}";
+    }
+
+    private void AlfaManageButton_Click(object sender, RoutedEventArgs e) => _openLink();
 
     private void Fill()
     {
         UseGemini.IsChecked = _settings.Provider == AiProvider.Gemini;
         UseOpenAi.IsChecked = _settings.Provider == AiProvider.OpenAi;
         UseAlfa.IsChecked = _settings.Provider == AiProvider.Alfa;
-        AlfaBaseUrl.Text = _settings.AlfaBaseUrl;
-        // 기본값은 ALFA 가 이 PC 를 부르는 이름. 위키·기기 설정(alfa-device.env)에서 이 PC 는 windows-office 다.
-        AlfaDevice.Text = string.IsNullOrWhiteSpace(_settings.AlfaDeviceName) ? "windows-office" : _settings.AlfaDeviceName;
 
         GeminiModel.Text = _settings.ModelFor(AiProvider.Gemini);
         OpenAiModel.Text = _settings.ModelFor(AiProvider.OpenAi);
@@ -73,9 +78,7 @@ public partial class AiSettingsWindow : Window
         OpenAiState.Text = _keys.Has(AiProvider.OpenAi)
             ? "등록됨 (바꾸려면 새로 적으세요. 비워 두면 그대로 둡니다)"
             : "등록되지 않음";
-        AlfaState.Text = (_keys.Get(AiProvider.Alfa) ?? "").StartsWith(AlfaChatClient.KeyPrefix, StringComparison.Ordinal)
-            ? "연동됨 — 이 펫 전용 키가 있어요 (ALFA 설정에서 해제하면 바로 끊겨요)"
-            : "연동 안 됨";
+        RefreshAlfaLine();
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -85,9 +88,6 @@ public partial class AiSettingsWindow : Window
             _settings.Provider = UseAlfa.IsChecked == true ? AiProvider.Alfa
                 : UseOpenAi.IsChecked == true ? AiProvider.OpenAi
                 : AiProvider.Gemini;
-            if (!TryReadAlfa(out var alfaUrl, out var device)) return;
-            _settings.AlfaBaseUrl = alfaUrl;
-            _settings.AlfaDeviceName = device;
             _settings.GeminiModel = GeminiModel.Text.Trim();
             _settings.OpenAiModel = OpenAiModel.Text.Trim();
             _settings.Persona = string.IsNullOrWhiteSpace(Persona.Text)
@@ -113,96 +113,6 @@ public partial class AiSettingsWindow : Window
         }
     }
 
-    /// <summary>ALFA 주소·기기 이름 칸을 읽는다. 키를 보내면 안 되는 주소면 저장도 요청도 하지 않는다.</summary>
-    private bool TryReadAlfa(out string url, out string device)
-    {
-        url = AlfaBaseUrl.Text.Trim();
-        if (url.Length == 0) url = AlfaChatClient.DefaultBaseUrl;
-        device = AlfaChatClient.NormalizeDeviceName(AlfaDevice.Text);
-        if (!AlfaChatClient.IsAllowedBase(url))
-        {
-            SaveState.Text = "ALFA 주소는 허브(https://…uziseignk.com)나 이 PC 만 돼요.";
-            return false;
-        }
-        return true;
-    }
-
-    /// <summary>
-    /// ALFA 에 연동을 요청하고 확인 코드를 보여 준 뒤, 승인될 때까지 5초마다 키 받아 가기를 시도한다.
-    /// 받은 키는 바로 DPAPI 로 저장하고, 받아 가기 비밀값은 메모리에만 둔다.
-    /// </summary>
-    private async void AlfaLinkButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryReadAlfa(out var url, out var device)) return;
-        if (device.Length == 0)
-        {
-            SaveState.Text = "기기 이름을 적어 주세요(예: windows-office).";
-            return;
-        }
-
-        _linking?.Cancel();
-        var cts = new CancellationTokenSource();
-        _linking = cts;
-        AlfaLinkButton.IsEnabled = false;
-        AlfaLinkStatus.Text = "ALFA 에 연동을 요청하는 중…";
-        try
-        {
-            var pet = _pet();
-            var ticket = await AlfaChatClient.RequestLinkAsync(_http, url, device, pet.Name, pet.Species, "windows", cts.Token);
-            _settings.AlfaBaseUrl = url;
-            _settings.AlfaDeviceName = device;
-            _store.Save(_settings);
-
-            AlfaCode.Text = ticket.ConfirmationCode;
-            AlfaCode.Visibility = Visibility.Visible;
-            AlfaLinkStatus.Text = $"ALFA 설정 › 기기 › 펫 연동에서 '{device}' 의 코드가 {ticket.ConfirmationCode} 인지 보고 승인하세요. "
-                                  + $"{ticket.ExpiresAt.ToLocalTime():HH:mm} 까지 기다립니다.";
-
-            while (!cts.IsCancellationRequested && DateTimeOffset.UtcNow < ticket.ExpiresAt)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
-                var result = await AlfaChatClient.PickupAsync(_http, url, ticket, cts.Token);
-                if (result.State == AlfaChatClient.PickupState.Pending) continue;
-                if (result.State == AlfaChatClient.PickupState.Issued)
-                {
-                    _keys.Set(AiProvider.Alfa, result.Key);
-                    AlfaLinkStatus.Text = "연동됐어요! 위에서 'ALFA'를 고르고 저장하면 물어보기가 ALFA 로 갑니다.";
-                    Saved?.Invoke();
-                }
-                else
-                {
-                    AlfaLinkStatus.Text = result.State == AlfaChatClient.PickupState.Closed
-                        ? "ALFA 에서 거절됐거나 시간이 지났어요. 다시 요청해 주세요."
-                        : "이 요청으로는 키를 받을 수 없어요. 다시 요청해 주세요.";
-                }
-                break;
-            }
-            if (DateTimeOffset.UtcNow >= ticket.ExpiresAt && AlfaCode.Visibility == Visibility.Visible && !_keys.Has(AiProvider.Alfa))
-                AlfaLinkStatus.Text = "승인 시간이 지났어요. 다시 요청해 주세요.";
-        }
-        catch (OperationCanceledException)
-        {
-            // 창을 닫았거나 다시 요청했다.
-        }
-        catch (AiException ex)
-        {
-            AlfaLinkStatus.Text = ex.Message;
-        }
-        catch (Exception)
-        {
-            AlfaLinkStatus.Text = "ALFA 에 연동을 요청하지 못했어요.";
-        }
-        finally
-        {
-            if (ReferenceEquals(_linking, cts))
-            {
-                AlfaCode.Visibility = Visibility.Collapsed;
-                AlfaLinkButton.IsEnabled = true;
-                RefreshKeyState();
-            }
-        }
-    }
-
     private void SaveKeyIfTyped(AiProvider provider, string typed)
     {
         if (string.IsNullOrWhiteSpace(typed)) return;
@@ -219,6 +129,7 @@ public partial class AiSettingsWindow : Window
         if (answer != MessageBoxResult.OK) return;
 
         _keys.ClearAll();
+        _link.KeysCleared();
         GeminiKey.Clear();
         OpenAiKey.Clear();
         RefreshKeyState();

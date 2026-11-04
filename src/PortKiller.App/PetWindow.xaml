@@ -51,6 +51,10 @@
                               AutomationProperties.AutomationId="AskMenuItem"
                               Header="💬  물어보기"
                               Click="AskMenu_Click" />
+                    <MenuItem x:Name="AlfaLinkMenuItem"
+                              AutomationProperties.AutomationId="AlfaLinkMenuItem"
+                              Header="🔗  ALFA 연동 · OFF"
+                              Click="AlfaLinkMenu_Click" />
                     <Separator />
                     <MenuItem x:Name="GameMenuItem"
                               Header="🎮  게임 / PS5 패드 &amp; 보이스"

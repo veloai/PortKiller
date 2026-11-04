@@ -155,6 +155,14 @@ public partial class StatusCard : UserControl
     }
 
     /// <summary>개발 환경 확인 결과를 카드에 그린다(1분에 한 번 정도 불린다).</summary>
+    /// <summary>ALFA 연동 한 줄. null 이면 숨긴다.</summary>
+    public void UpdateAlfa(string? line)
+    {
+        if (AlfaText.Text == (line ?? string.Empty) && (line is null) == (AlfaText.Visibility == Visibility.Collapsed)) return;
+        AlfaText.Text = line ?? string.Empty;
+        AlfaText.Visibility = line is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     public void UpdateDev(IReadOnlyList<DevCheck> checks)
     {
         _dev = checks;

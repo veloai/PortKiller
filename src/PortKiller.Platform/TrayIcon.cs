@@ -30,6 +30,7 @@ public sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _alwaysOnTopItem;
     private readonly ToolStripMenuItem _autostartItem;
     private readonly ToolStripMenuItem _hideItem;
+    private readonly ToolStripMenuItem _alfaLinkItem;
 
     private bool _disposed;
 
@@ -44,6 +45,9 @@ public sealed class TrayIcon : IDisposable
 
     /// <summary>AI 열쇠·모델 설정 창을 열어 달라는 뜻.</summary>
     public event Action? AiSettingsRequested;
+
+    /// <summary>ALFA 연동 창을 열어 달라는 뜻.</summary>
+    public event Action? AlfaLinkRequested;
 
     /// <summary>NAC 자동 로그인 설정 창을 열어 달라는 뜻.</summary>
     public event Action? NacSettingsRequested;
@@ -103,6 +107,10 @@ public sealed class TrayIcon : IDisposable
         var aiSettingsItem = new ToolStripMenuItem("🔑 AI 설정 (열쇠·모델)");
         aiSettingsItem.Click += (_, _) => AiSettingsRequested?.Invoke();
 
+        // 글자는 바깥이 상태에 맞춰 바꾼다(SetAlfaLinkLabel): 🔗 ALFA 연동 · LINKED / WAITING / OFF
+        _alfaLinkItem = new ToolStripMenuItem("🔗 ALFA 연동 · OFF");
+        _alfaLinkItem.Click += (_, _) => AlfaLinkRequested?.Invoke();
+
         var nacItem = new ToolStripMenuItem("🔐 NAC 자동 로그인");
         nacItem.Click += (_, _) => NacSettingsRequested?.Invoke();
 
@@ -119,6 +127,7 @@ public sealed class TrayIcon : IDisposable
             notebookItem,
             askItem,
             aiSettingsItem,
+            _alfaLinkItem,
             nacItem,
             new ToolStripSeparator(),
             _hideItem,
@@ -152,6 +161,13 @@ public sealed class TrayIcon : IDisposable
         var safe = text ?? string.Empty;
         if (safe.Length > TooltipMaxLength) safe = safe[..TooltipMaxLength];
         _notifyIcon.Text = safe;
+    }
+
+    /// <summary>ALFA 연동 메뉴 글자. 상태 낱말만 온다 — 키나 코드는 오지 않는다.</summary>
+    public void SetAlfaLinkLabel(string text)
+    {
+        if (_disposed) return;
+        _alfaLinkItem.Text = text;
     }
 
     private static bool ReadAutostartState()

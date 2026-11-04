@@ -18,19 +18,24 @@ public partial class AskWindow : Window
     private readonly Func<IAiClient> _clientFactory;
     private readonly AiSettings _settings;
     private readonly Func<bool> _hasKey;
+    private readonly Func<PetLinkState> _alfaLink;
 
     private CancellationTokenSource? _inFlight;
 
     /// <summary>답을 받았을 때. 펫이 한마디 하게 하려고 바깥에 넘긴다.</summary>
     public event Action<string>? Answered;
 
-    public AskWindow(Func<IAiClient> clientFactory, AiSettings settings, Func<bool> hasKey)
+    /// <summary>[ALFA 연동하기]를 눌렀다. 연동 창을 열어 달라는 뜻.</summary>
+    public event Action? LinkRequested;
+
+    public AskWindow(Func<IAiClient> clientFactory, AiSettings settings, Func<bool> hasKey, Func<PetLinkState> alfaLink)
     {
         InitializeComponent();
 
         _clientFactory = clientFactory;
         _settings = settings;
         _hasKey = hasKey;
+        _alfaLink = alfaLink;
 
         Loaded += (_, _) =>
         {
@@ -48,6 +53,23 @@ public partial class AskWindow : Window
         var name = AiSettings.DisplayName(_settings.Provider);
         var model = _settings.ModelFor(_settings.Provider);
 
+        if (_settings.Provider == AiProvider.Alfa)
+        {
+            // 머리줄: ALFA · Alorys ▦ LINKED. 연동이 없거나 끊겼으면 [ALFA 연동하기].
+            var link = _alfaLink();
+            ProviderLabel.Text = $"{name} · {model} {link.Glyph} {link.MenuWord}";
+            LinkButton.Visibility = link.IsLinked ? Visibility.Collapsed : Visibility.Visible;
+            StatusText.Text = link.Phase switch
+            {
+                PetLinkPhase.Linked or PetLinkPhase.Unreachable => "",
+                PetLinkPhase.Waiting => "ALFA 승인을 기다리는 중이에요. 승인되면 바로 물어볼 수 있어요.",
+                PetLinkPhase.Revoked => "ALFA 연결이 끊겼어요. [ALFA 연동하기]로 다시 연동해 주세요.",
+                _ => "ALFA 와 아직 연동되지 않았어요. [ALFA 연동하기]를 눌러 주세요.",
+            };
+            return;
+        }
+
+        LinkButton.Visibility = Visibility.Collapsed;
         if (_hasKey())
         {
             ProviderLabel.Text = $"{name} · {model}";
@@ -56,9 +78,7 @@ public partial class AskWindow : Window
         else
         {
             ProviderLabel.Text = $"{name} · {model}";
-            StatusText.Text = _settings.Provider == AiProvider.Alfa
-                ? "ALFA 와 아직 연동되지 않았어요. 트레이 메뉴의 'AI 설정'에서 [ALFA 연동 요청]을 눌러 주세요."
-                : $"{name} 열쇠가 아직 없어요. 트레이 메뉴의 'AI 설정'에서 등록해 주세요.";
+            StatusText.Text = $"{name} 열쇠가 아직 없어요. 트레이 메뉴의 'AI 설정'에서 등록해 주세요.";
         }
     }
 
@@ -78,6 +98,8 @@ public partial class AskWindow : Window
     }
 
     private void SendButton_Click(object sender, RoutedEventArgs e) => _ = SendAsync();
+
+    private void LinkButton_Click(object sender, RoutedEventArgs e) => LinkRequested?.Invoke();
 
     private async Task SendAsync()
     {
@@ -110,6 +132,8 @@ public partial class AskWindow : Window
         catch (AiException ex)
         {
             AnswerText.Text = "";
+            // 401 이면 연동 상태가 "끊김"으로 바뀌어 [ALFA 연동하기]가 보인다(C9). 안내는 서버 답 쪽을 남긴다.
+            RefreshProviderLabel();
             StatusText.Text = ex.Message;
         }
         catch (Exception)

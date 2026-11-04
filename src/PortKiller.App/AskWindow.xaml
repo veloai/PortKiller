@@ -20,12 +20,28 @@
 
         <!-- 어디로 물어보는지 늘 보이게 둔다. 열쇠를 둘 다 등록해 두면
              지금 어느 쪽이 도는지 모른 채 요금이 나간다. -->
-        <TextBlock x:Name="ProviderLabel"
-                   Grid.Row="0"
-                   Foreground="#FF8A8A80"
-                   FontSize="11"
-                   Margin="2,0,0,8"
-                   Text="—" />
+        <Grid Grid.Row="0" Margin="2,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="ProviderLabel"
+                       AutomationProperties.AutomationId="ProviderLabel"
+                       VerticalAlignment="Center"
+                       Foreground="#FF8A8A80"
+                       FontFamily="Consolas, Malgun Gothic"
+                       FontSize="11"
+                       Text="—" />
+            <!-- ALFA 를 골랐는데 연동이 안 됐으면 바로 연동 창으로 -->
+            <Button x:Name="LinkButton"
+                    AutomationProperties.AutomationId="AlfaLinkButton"
+                    Grid.Column="1"
+                    Padding="10,2"
+                    FontSize="11"
+                    Visibility="Collapsed"
+                    Content="ALFA 연동하기"
+                    Click="LinkButton_Click" />
+        </Grid>
 
         <!-- 답이 나오는 곳. 읽기 전용이지만 긁어 갈 수 있어야 쓸모가 있다. -->
         <Border Grid.Row="1"

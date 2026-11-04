@@ -81,6 +81,10 @@ public partial class PetWindow : Window, IPetMcpHost
     private NotebookWindow? _notebookWindow;
     private AskWindow? _askWindow;
     private AiSettingsWindow? _aiSettingsWindow;
+    private AlfaLinkWindow? _alfaLinkWindow;
+
+    /// <summary>ALFA 연동(요청·받아 가기·5분 확인·끊기). 펫 본체가 들고 있어 창을 닫아도 계속 돈다(C1).</summary>
+    private AlfaLinkController _alfaLink = null!;
     private NacSettingsWindow? _nacSettingsWindow;
     private UnifiedInputDispatcher? _gameDispatcher;
     private GameMappingWindow? _gameMappingWindow;
@@ -139,6 +143,8 @@ public partial class PetWindow : Window, IPetMcpHost
         };
 
         _ai = _aiStore.Load();
+        _alfaLink = new AlfaLinkController(_http, _keys, _ai, _aiStore, Dispatcher);
+        _alfaLink.Changed += OnAlfaLinkChanged;
 
         LoadPet();
         SetUpTray();
@@ -147,7 +153,7 @@ public partial class PetWindow : Window, IPetMcpHost
         OpenNotebookIfRequested();
         _ = ReportGenianOnStartAsync();
         _ = WatchDevStatusAsync();
-        _ = WatchAlfaLinkAsync();
+        _ = _alfaLink.RunChecksAsync();
         StartMcpServer();
         _ = AutoLoginNacOnStartAsync();
     }
@@ -207,6 +213,9 @@ public partial class PetWindow : Window, IPetMcpHost
         _tray.NotebookRequested += OpenNotebook;
         _tray.AskRequested += OpenAsk;
         _tray.AiSettingsRequested += OpenAiSettings;
+        _tray.AlfaLinkRequested += OpenAlfaLink;
+        _tray.SetAlfaLinkLabel(_alfaLink.State.MenuLabel);
+        AlfaLinkMenuItem.Header = _alfaLink.State.MenuLabel;
         _tray.NacSettingsRequested += OpenNacSettings;
         _tray.ResetRequested += ConfirmAndReset;
         _tray.QuitRequested += Close;
@@ -229,7 +238,7 @@ public partial class PetWindow : Window, IPetMcpHost
         return _ai.Provider switch
         {
             AiProvider.OpenAi => new OpenAiChatClient(_http, () => _keys.Get(AiProvider.OpenAi), _ai),
-            AiProvider.Alfa => new AlfaChatClient(_http, () => _keys.Get(AiProvider.Alfa), _ai),
+            AiProvider.Alfa => new AlfaChatClient(_http, () => _keys.Get(AiProvider.Alfa), _ai, _alfaLink.ReportUnauthorized),
             _ => new GeminiChatClient(_http, () => _keys.Get(AiProvider.Gemini), _ai),
         };
     }
@@ -257,7 +266,8 @@ public partial class PetWindow : Window, IPetMcpHost
             return;
         }
 
-        _askWindow = new AskWindow(CurrentAiClient, _ai, () => _keys.Has(_ai.Provider));
+        _askWindow = new AskWindow(CurrentAiClient, _ai, () => _keys.Has(_ai.Provider), () => _alfaLink.State);
+        _askWindow.LinkRequested += OpenAlfaLink;
         _askWindow.Answered += _ =>
         {
             Say(CareText.AiAnswered(_rng));
@@ -275,7 +285,7 @@ public partial class PetWindow : Window, IPetMcpHost
             return;
         }
 
-        _aiSettingsWindow = new AiSettingsWindow(_ai, _keys, _aiStore, _http, () => (_pet.KindInfo.Name, _pet.KindInfo.Id));
+        _aiSettingsWindow = new AiSettingsWindow(_ai, _keys, _aiStore, _alfaLink, OpenAlfaLink);
         _aiSettingsWindow.Saved += () => _askWindow?.RefreshProviderLabel();
         _aiSettingsWindow.Closed += (_, _) => _aiSettingsWindow = null;
         _aiSettingsWindow.Show();
@@ -340,48 +350,54 @@ public partial class PetWindow : Window, IPetMcpHost
         }
     }
 
-    // ---------- ALFA 연동 확인 ----------
+    // ---------- ALFA 연동 ----------
+
+    /// <summary>연동 창. 하나만 띄운다. 닫아도 대기·확인은 펫 본체(<see cref="_alfaLink"/>)가 계속한다.</summary>
+    private void OpenAlfaLink()
+    {
+        if (_alfaLinkWindow is not null)
+        {
+            _alfaLinkWindow.Activate();
+            return;
+        }
+
+        _alfaLinkWindow = new AlfaLinkWindow(_alfaLink, () => (_pet.KindInfo.Name, _pet.KindInfo.Id));
+        _alfaLinkWindow.Closed += (_, _) => _alfaLinkWindow = null;
+        _alfaLinkWindow.Show();
+    }
+
+    private void AlfaLinkMenu_Click(object sender, RoutedEventArgs e) => OpenAlfaLink();
 
     /// <summary>
-    /// ALFA 연동 키가 있으면 5분마다 <c>/api/pet/me</c> 로 살아 있다고 알린다(ALFA 설정 목록의 "연결됨"은 10분 안 접속).
-    /// 해제됐으면 한 번만 말풍선으로 알리고, 키는 지우지 않는다(다시 연동하면 바뀐다).
+    /// 연동 상태가 바뀌었다. 말풍선·표정은 §14 대로(<see cref="PetLinkState.Speech"/>), 연결 불가는 말하지 않는다.
+    /// startup.log 는 단계가 바뀔 때만 한 줄(C8) — 5분 확인이 마지막 확인 시각만 바꾸면 남기지 않는다. 키·비밀값은 없다.
     /// </summary>
-    private async Task WatchAlfaLinkAsync()
+    private void OnAlfaLinkChanged(PetLinkState before, PetLinkState after)
     {
-        var warned = false;
-        try
+        if (PetLinkState.ShouldLog(before, after)) StartupLog.Write(PetLinkState.LogLine(before, after));
+
+        var speech = PetLinkState.Speech(before, after);
+        if (speech.Line is { } line) Say(line);
+        if (speech.Mood == PetLinkMood.Happy) React(PetPose.Happy);
+        else if (speech.Mood == PetLinkMood.Sad) React(PetPose.Sulk);
+
+        _tray?.SetAlfaLinkLabel(after.MenuLabel);
+        AlfaLinkMenuItem.Header = after.MenuLabel;
+        RefreshAlfaStatus();
+        if (before.Phase != after.Phase)
         {
-            await Task.Delay(TimeSpan.FromSeconds(20), _devCancel.Token);
-            while (!_devCancel.IsCancellationRequested)
-            {
-                var key = _keys.Get(AiProvider.Alfa);
-                if (key is not null && key.StartsWith(AlfaChatClient.KeyPrefix, StringComparison.Ordinal))
-                {
-                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_devCancel.Token);
-                    timeout.CancelAfter(TimeSpan.FromSeconds(15));
-                    AlfaChatClient.LinkState state;
-                    try
-                    {
-                        state = await AlfaChatClient.MeAsync(_http, _ai.AlfaBaseUrl, key, timeout.Token);
-                    }
-                    catch (OperationCanceledException) when (!_devCancel.IsCancellationRequested)
-                    {
-                        state = AlfaChatClient.LinkState.Unreachable;   // 15초 안에 답이 없었다. 다음 차례에 다시 본다.
-                    }
-                    StartupLog.Write($"alfa-link {state}");
-                    if (state == AlfaChatClient.LinkState.Unlinked && !warned)
-                    {
-                        Say("ALFA 연동이 끊겼어요. 'AI 설정'에서 다시 연동 요청해 주세요.");
-                        warned = true;
-                    }
-                    if (state == AlfaChatClient.LinkState.Connected) warned = false;
-                }
-                await Task.Delay(TimeSpan.FromMinutes(5), _devCancel.Token);
-            }
+            _askWindow?.RefreshProviderLabel();
+            _aiSettingsWindow?.RefreshAlfaLine();
         }
-        catch (OperationCanceledException)
-        {
-        }
+    }
+
+    /// <summary>상태 카드의 <c>ALFA ▦ LINKED · 2m</c> 한 줄. ALFA 를 안 쓰고 연동도 없으면 숨긴다.</summary>
+    private void RefreshAlfaStatus()
+    {
+        var s = _alfaLink.State;
+        DebugPanel.UpdateAlfa(_ai.Provider == AiProvider.Alfa || s.Phase != PetLinkPhase.Off
+            ? s.StatusLine(DateTimeOffset.UtcNow)
+            : null);
     }
 
     // ---------- MCP 서버 ----------
@@ -443,6 +459,13 @@ public partial class PetWindow : Window, IPetMcpHost
             ["poopsOnGround"] = _pet.PoopsOnGround,
             ["focusHours"] = Math.Round(_pet.FocusSeconds / 3600.0, 1),
             ["summary"] = Briefing.Summary(s),
+            // 연동 상태만. 키·확인 코드·받아 가기 비밀값은 넣지 않는다.
+            ["alfaLink"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["state"] = _alfaLink.State.Phase.ToString().ToLowerInvariant(),
+                ["device"] = _alfaLink.DeviceName,
+                ["lastSeenMinutes"] = _alfaLink.State.LastSeenMinutes(DateTimeOffset.UtcNow),
+            },
         };
     });
 
@@ -857,7 +880,11 @@ public partial class PetWindow : Window, IPetMcpHost
         _reactionUntil = DateTimeOffset.Now + ReactionHold;
     }
 
-    private void RefreshDebug() => DebugPanel.Update(_pet, _activity.IsIdle);
+    private void RefreshDebug()
+    {
+        DebugPanel.Update(_pet, _activity.IsIdle);
+        if (_alfaLink is not null) RefreshAlfaStatus();
+    }
 
     /// <summary>
     /// 트레이 툴팁. 60프레임마다 갱신할 이유가 없어서 2초에 한 번만 건드린다.
@@ -1320,6 +1347,8 @@ public partial class PetWindow : Window, IPetMcpHost
         _notebookWindow?.Close();
         _nacCancel.Cancel();
         _devCancel.Cancel();
+        _alfaLinkWindow?.Close();
+        _alfaLink?.Dispose();
         _mcp?.Dispose();
         _gameMappingWindow?.Close();
         _gameDispatcher?.Dispose();

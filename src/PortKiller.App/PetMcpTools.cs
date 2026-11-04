@@ -58,7 +58,9 @@ internal static class PetMcpTools
 
         new McpTool(
             "pet_status",
-            "Read the desktop pet's current state: species, life stage, stats (0-100), condition, poops on the ground.",
+            "Read the desktop pet's current state: species, life stage, stats (0-100), condition, poops on the ground, " +
+            "and alfaLink {state: off|waiting|linked|expired|rejected|revoked|unreachable, device, lastSeenMinutes (null if never checked)}. " +
+            "Never contains the pet key.",
             Schema(new JsonObject()),
             _ => new McpToolResult(host.Status().ToJsonString(Pretty))),
 
