@@ -67,7 +67,7 @@ public sealed partial class AlfaChatClient : IAiClient
         }
     }
 
-    public enum RequestOutcome { Created, Invalid, Limit, Conflict, Unreachable, Failed }
+    public enum RequestOutcome { Created, Invalid, Limit, RateLimited, Conflict, Unreachable, Failed }
 
     public sealed record RequestResult(RequestOutcome Outcome, LinkTicket? Ticket)
     {
@@ -77,6 +77,7 @@ public sealed partial class AlfaChatClient : IAiClient
             RequestOutcome.Created => null,
             RequestOutcome.Invalid => "연동 요청 형식이 맞지 않아요. 기기 이름을 확인해 주세요.",
             RequestOutcome.Limit => "ALFA 에 승인 대기 요청이 너무 많아요. ALFA 설정에서 정리하거나 10분 뒤 다시 요청해 주세요.",
+            RequestOutcome.RateLimited => "요청을 너무 자주 보냈어요. 10분쯤 뒤에 다시 요청해 주세요.",
             RequestOutcome.Conflict => "다른 요청과 겹쳤어요. 잠시 뒤 다시 요청해 주세요.",
             RequestOutcome.Unreachable => "ALFA 에 연결하지 못했어요. 인터넷과 ALFA 주소를 확인해 주세요.",
             _ => "ALFA 에 연동을 요청하지 못했어요.",
@@ -232,7 +233,9 @@ public sealed partial class AlfaChatClient : IAiClient
                     return new(RequestOutcome.Failed, null);
                 }
             case HttpStatusCode.BadRequest: return new(RequestOutcome.Invalid, null);
-            case HttpStatusCode.TooManyRequests: return new(RequestOutcome.Limit, null);
+            // 서버가 같은 429 로 두 가지를 알린다: 대기 수 한도(PET_LINK_LIMIT)와 같은 곳 횟수 제한(PET_LINK_RATE_LIMIT).
+            case HttpStatusCode.TooManyRequests:
+                return new(json.Contains("PET_LINK_RATE_LIMIT", StringComparison.Ordinal) ? RequestOutcome.RateLimited : RequestOutcome.Limit, null);
             case HttpStatusCode.Conflict: return new(RequestOutcome.Conflict, null);
             default:
                 return new(status >= HttpStatusCode.InternalServerError ? RequestOutcome.Unreachable : RequestOutcome.Failed, null);

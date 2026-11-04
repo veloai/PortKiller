@@ -45,6 +45,7 @@ public class AlfaLinkContractTests
     [Theory]
     [InlineData(HttpStatusCode.BadRequest, """{"error":"INVALID_REQUEST"}""", AlfaChatClient.RequestOutcome.Invalid)]
     [InlineData(HttpStatusCode.TooManyRequests, """{"error":"PET_LINK_LIMIT"}""", AlfaChatClient.RequestOutcome.Limit)]
+    [InlineData(HttpStatusCode.TooManyRequests, """{"error":"PET_LINK_RATE_LIMIT"}""", AlfaChatClient.RequestOutcome.RateLimited)]
     [InlineData(HttpStatusCode.Conflict, """{"error":"PET_LINK_CONFLICT"}""", AlfaChatClient.RequestOutcome.Conflict)]
     [InlineData(HttpStatusCode.BadGateway, "", AlfaChatClient.RequestOutcome.Unreachable)]
     [InlineData(HttpStatusCode.Created, """{"linkId":"nope"}""", AlfaChatClient.RequestOutcome.Failed)]
