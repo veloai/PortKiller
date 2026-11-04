@@ -41,26 +41,19 @@
 
 ## 4. 흐름
 
-### 4.1 대화로 명령 (⚠️ 2026-11-03 잘못 연결 — 교체 예정)
-
-> **사용자 판정(11-03)**: Alorys 는 채팅 기능이 아니라 사용자가 ALFA 안에 만든 비서 시스템이다. 펫은 로그인 없이 **API(열쇠)로** 불러야 한다.
-> 아래 1~5 는 지금 들어가 있는 임시 구현(로그인 방식)이다. 교체안: ALFA 에 펫용 입구 → Alorys `pet:<기기>` 방 → 승인은 펫 버튼. 상세는 위키 `worklog/session-2026-09-30-11-03-pkp-alfa-pet-dossier.md` §9.
-
-1. 처음 한 번: 트레이 → AI 설정 → **ALFA 로그인**(주인 계정 아이디·비밀번호, 사용자가 직접 입력)
-   → `POST /api/auth/login` → 돌려받은 **7일 세션 열쇠만** DPAPI 로 `keys.dat` 에 보관(비밀번호는 저장 안 함).
-   패스키 전용 계정은 웹에서 받은 `alfa_token` 을 붙여 넣는다.
-2. 나: "alfa-backend 상태 봐 줘" → 펫 물어보기 창(제공자 = ALFA)
-3. 펫 → ALFA `POST /api/alorys/chat` `{text, history: []}` + `Authorization: Bearer`
-   (Bearer 가 있으면 ALFA 의 Origin 검사를 통과한다 — 컨트롤러가 그렇게 설계됨)
-4. ALFA: Alorys 가 직접 처리하거나 에이전트 루프(최대 4단계, 90초)로 답
-5. 펫: 답을 창에 보여 줌. `status: approval_required` 면 **"ALFA 에서 승인해야 실행"이라고만** 알리고 펫이 승인하지 않는다
-- 주소는 **127.0.0.1/localhost 만** 받는다(열쇠가 주인 권한이라 밖으로 새면 안 됨). 기다림 100초(서버 90초보다 길게)
-- 펫 MCP 도구로 ALFA 대화를 중계하지 **않는다** — 그러면 `mcp.key` 만 가진 쪽이 ALFA 주인 권한을 얻는다
-- 코드: `Core/AlfaChatClient.cs`, 시험 `AlfaChatClientTests.cs`
-- **왜 cli-ask 가 아닌가**: ALFA 의 cli-ask 는 꺼져 있고(`ALFA_CLI_ASK_ENABLED` 없음), 호출자 열쇠도 없고,
-  컨테이너에 claude·gemini·codex CLI 도 없다. 켜는 것만으로는 동작하지 않는다 → 나중 선택지(승인 필요)
-- **알아 둘 점**: 펫 대화는 ALFA 의 `web:<내 userId>` 방에 들어가 웹 Alorys 대화와 같은 방을 쓴다.
-  웹에서 답을 기다리는 중이면 펫은 "다른 질문에 답하는 중"(429)을 받는다
+### 4.1 대화로 명령 — 펫 전용 키 (2026-11-04, 로그인 방식 걷어냄)
+정본 계약: ALFA 위키 `projects/alfa-pet-link-plan.md`. 사용자 결정: "로그인 없이 펫 전용 키로, 기기마다 따로, 설정에서 허가".
+1. 처음 한 번: 트레이 → AI 설정 → **ALFA 연동** → 기기 이름(예: `windows-office`) 확인 → [ALFA 연동 요청]
+   → `POST https://alfa.uziseignk.com/api/pet-links/request` → 펫 창에 **확인 코드 6자리**.
+2. ALFA 설정 › 기기 › **펫 연동** 카드에 그 요청이 "요청 대기"로 뜬다 → 코드가 같으면 [Approve].
+3. 펫이 5초마다 `POST /api/pet-links/{id}/pickup` → 승인되면 **펫 전용 키(`alfa_pet_…`)를 한 번만** 받아 DPAPI `keys.dat` 에 보관. 서버는 키 해시만 둔다.
+4. 물어보기(제공자 ALFA) → `POST /api/pet/chat` `Authorization: Bearer alfa_pet_…` → Alorys 가 이 펫 대화방 `pet:<linkId>` 에서 답(규칙 밖이면 에이전트 루프).
+5. `approval_required` 면 "ALFA(웹·텔레그램)에서 승인" 이라고만 알린다. 펫은 승인하지 않는다.
+- 키는 `/api/pet/*` 에서만 통한다(다른 경로는 401, 시험 `AuthWebFilterTest`). 설정에서 [Revoke] 하면 바로 끊긴다.
+- 주소는 허브 `https://…uziseignk.com` 또는 이 PC(개발용)만. 그 밖은 키를 보내지 않는다.
+- 연동 목록은 허브 한 곳(세 기기 공용). Windows 의 로컬 백엔드(127.0.0.1:7701)는 자기 PC 데이터베이스라 목록이 따로다.
+- **허브 배포 전에는 동작하지 않는다**(11-04 기준 허브 미배포). 배포는 사용자 승인 후 — 위키 `handoff/mac-intel-handoff.md`.
+- 코드: `Core/AlfaChatClient.cs`, 시험 `AlfaChatClientTests.cs`. ALFA: `backend/container/.../api/pet/*`, `frontend/src/pages/settings/PetLinksPanel.tsx`.
 
 ### 4.2 ALFA → 펫 (완료: MCP 서버)
 - ALFA MCP 허브 / Claude Code 가 `pet_say`·`pet_status`·`dev_status`·`pet_briefing` 호출
@@ -81,7 +74,7 @@
 | 장기 기억(B) | ✅ | 첫 출근 한마디·신기록·브리핑 카드 주간 요약·MCP `pet_memory`·"기억 지우기". 11/03 실기 확인 |
 | 자동 실행·시작 기록·중복 방지 | ✅ | `startup.log` |
 | NAC 자동 로그인 | 🔴 | 창 찾기·입력 방식은 됨. Genian `GNAUTH` 가 관리자 권한이라 막힘 → 관리자 도우미(작업 스케줄러) **승인 대기** |
-| ALFA 백엔드 연결(물어보기 → Alorys) | ⚠️ 잘못 연결(로그인 방식) → 펫용 API 입구로 교체 예정(승인 대기) | 11/03. ALFA 설정 변경 없음. 실 ALFA 로 잘못된 로그인 거절·외부 주소 차단 확인. **실제 로그인·질문은 사용자 몫** |
+| ALFA 연동(펫 전용 키 → Alorys) | 🟡 11-04 개발·시험 완료(ALFA 백엔드 18·프런트·PKP 203 통과). **허브 배포 대기**(승인 후) · macOS 펫 클라이언트는 mac-air | 11/03. ALFA 설정 변경 없음. 실 ALFA 로 잘못된 로그인 거절·외부 주소 차단 확인. **실제 로그인·질문은 사용자 몫** |
 | ALFA `/mcp` 무인증 | ⚠️ | ALFA 의 `/mcp/*` 는 인증 필터(`/api/*` 만 검사) 밖이라 열쇠 없이 `tools/list` 가 된다(읽기 4종). 공개 도메인 노출 여부는 허브(mac-intel) 터널 설정 확인 필요. 펫은 여기에 기대지 않는다 |
 | 샌드박스 컴퓨터 사용 | ⚪ | 제안. Docker 리눅스 데스크톱 + Anthropic 열쇠 필요 |
 | 게임(PS5 패드·음성·WoW HUD) | 🟡 | mac 쪽에서 들어온 기능(veloai, 10/11). 입력 흉내·마이크 사용 → **개인정보 문서 미반영** |
@@ -96,7 +89,7 @@
 
 ### 다음 할 일 (순서)
 1. ~~B 마무리~~ ✅ 2026-11-03
-2. ~~ALFA 연결~~ ✅ 2026-11-03 (Alorys 비서). 다음: ALFA `/mcp` 인증 막기(승인 후), 펫 전용 방 분리 여부 결정
+2. ALFA 연동: 11-04 펫 전용 키 방식 개발 완료 → **허브 배포(승인 후)** → 세 기기 펫 각각 연동 요청·승인. 별도: ALFA `/mcp` 인증 막기(승인 후)
 3. NAC 관리자 도우미(승인 시)
 4. 게임 기능의 개인정보 문서 반영
 5. 샌드박스 컴퓨터 사용(결정 시)

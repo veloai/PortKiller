@@ -57,7 +57,7 @@ public partial class AskWindow : Window
         {
             ProviderLabel.Text = $"{name} · {model}";
             StatusText.Text = _settings.Provider == AiProvider.Alfa
-                ? "ALFA 로그인이 아직 없어요. 트레이 메뉴의 'AI 설정'에서 로그인해 주세요."
+                ? "ALFA 와 아직 연동되지 않았어요. 트레이 메뉴의 'AI 설정'에서 [ALFA 연동 요청]을 눌러 주세요."
                 : $"{name} 열쇠가 아직 없어요. 트레이 메뉴의 'AI 설정'에서 등록해 주세요.";
         }
     }

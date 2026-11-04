@@ -6,7 +6,7 @@ public enum AiProvider
     Gemini = 0,
     OpenAi = 1,
 
-    /// <summary>이 PC 의 ALFA 백엔드 비서(Alorys). 열쇠 대신 ALFA 로그인 세션을 쓴다.</summary>
+    /// <summary>ALFA 비서(Alorys). ALFA 가 승인해 준 펫 전용 키로 부른다.</summary>
     Alfa = 2,
 }
 
@@ -42,8 +42,11 @@ public sealed class AiSettings
 
     public string Persona { get; set; } = DefaultPersona;
 
-    /// <summary>ALFA 백엔드 주소. 이 PC(127.0.0.1)만 받는다.</summary>
+    /// <summary>ALFA 주소. 기본은 세 기기가 함께 쓰는 허브. 허브(https uziseignk.com)나 이 PC 만 받는다.</summary>
     public string AlfaBaseUrl { get; set; } = AlfaChatClient.DefaultBaseUrl;
+
+    /// <summary>ALFA 설정 화면에 이 펫이 어느 기기 것인지 보이는 이름(예: windows-office).</summary>
+    public string AlfaDeviceName { get; set; } = "";
 
     /// <summary>한 번 물어볼 때 기다릴 시간. 넘으면 끊고 사람이 읽을 수 있는 말로 알린다.</summary>
     public int TimeoutSeconds { get; set; } = 60;

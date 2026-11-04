@@ -274,7 +274,7 @@ public partial class PetWindow : Window, IPetMcpHost
             return;
         }
 
-        _aiSettingsWindow = new AiSettingsWindow(_ai, _keys, _aiStore, _http);
+        _aiSettingsWindow = new AiSettingsWindow(_ai, _keys, _aiStore, _http, () => (_pet.KindInfo.Name, _pet.KindInfo.Id));
         _aiSettingsWindow.Saved += () => _askWindow?.RefreshProviderLabel();
         _aiSettingsWindow.Closed += (_, _) => _aiSettingsWindow = null;
         _aiSettingsWindow.Show();
