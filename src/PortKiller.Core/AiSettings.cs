@@ -48,6 +48,28 @@ public sealed class AiSettings
     /// <summary>ALFA 설정 화면에 이 펫이 어느 기기 것인지 보이는 이름(예: windows-office).</summary>
     public string AlfaDeviceName { get; set; } = "";
 
+    /// <summary>이 펫이 ALFA 키를 받은 시각(연동 창 "연결 시각"). 비밀 아님.</summary>
+    public DateTimeOffset? AlfaLinkedAt { get; set; }
+
+    /// <summary>11-03 판이 저장한 옛 기본 주소(이 PC 의 ALFA 백엔드). 지금 기본은 허브다(C4).</summary>
+    public static readonly string[] LegacyAlfaBaseUrls = { "http://127.0.0.1:7701", "http://localhost:7701" };
+
+    /// <summary>
+    /// 불러온 뒤 옛 값을 고친다(C4). 옛 기본 주소 <c>http://127.0.0.1:7701</c> 이 남아 있으면 허브로 바꾼다 —
+    /// 남겨 두면 연동 요청이 허브가 아니라 이 PC 로 가서 영영 승인이 안 보인다. 바꿨으면 true.
+    /// </summary>
+    public bool MigrateLegacy()
+    {
+        var url = (AlfaBaseUrl ?? "").Trim().TrimEnd('/').ToLowerInvariant();
+        if (url.Length == 0 || LegacyAlfaBaseUrls.Contains(url))
+        {
+            var changed = AlfaBaseUrl != AlfaChatClient.DefaultBaseUrl;
+            AlfaBaseUrl = AlfaChatClient.DefaultBaseUrl;
+            return changed;
+        }
+        return false;
+    }
+
     /// <summary>한 번 물어볼 때 기다릴 시간. 넘으면 끊고 사람이 읽을 수 있는 말로 알린다.</summary>
     public int TimeoutSeconds { get; set; } = 60;
 

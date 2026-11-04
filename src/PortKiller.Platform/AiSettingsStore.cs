@@ -29,8 +29,11 @@ public sealed class AiSettingsStore
         try
         {
             if (!File.Exists(_path)) return new AiSettings();
-            return JsonSerializer.Deserialize<AiSettings>(File.ReadAllText(_path), Options)
-                   ?? new AiSettings();
+            var settings = JsonSerializer.Deserialize<AiSettings>(File.ReadAllText(_path), Options)
+                           ?? new AiSettings();
+            // 옛 기본 주소(127.0.0.1:7701)는 허브로 옮긴다(C4). 다음 저장 때 파일에도 남는다.
+            settings.MigrateLegacy();
+            return settings;
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {

@@ -63,9 +63,9 @@ public class AlfaChatClientTests
     }
 
     [Fact]
-    public async Task Approval_required_is_shown_and_never_confirmed_by_the_pet()
+    public async Task Needs_confirmation_is_shown_and_never_confirmed_by_the_pet()
     {
-        var (client, handler) = Alfa(_ => Json(HttpStatusCode.OK, """{"reply":"재시작할까요?","source":"alorys","status":"approval_required"}"""));
+        var (client, handler) = Alfa(_ => Json(HttpStatusCode.OK, """{"reply":"재시작할까요?","source":"alorys","status":"needs-confirmation"}"""));
 
         var answer = await client.AskAsync("hermes 재시작해");
 
@@ -76,9 +76,9 @@ public class AlfaChatClientTests
 
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, "PET_KEY_REQUIRED", "다시 연동")]
-    [InlineData(HttpStatusCode.TooManyRequests, "CHAT_ALREADY_RUNNING", "앞 질문")]
+    [InlineData(HttpStatusCode.TooManyRequests, "PET_BUSY", "앞 질문")]
     [InlineData(HttpStatusCode.ServiceUnavailable, "ALORYS_UNAVAILABLE", "응답하지 못해요")]
-    [InlineData(HttpStatusCode.ServiceUnavailable, "ALORYS_ANSWER_INCOMPLETE", "끝까지")]
+    [InlineData(HttpStatusCode.BadRequest, "TEXT_REQUIRED", "질문을 적어")]
     public async Task Server_error_codes_become_plain_words(HttpStatusCode status, string code, string expected)
     {
         var (client, _) = Alfa(_ => Json(status, $$"""{"error":"{{code}}"}"""));
@@ -123,8 +123,15 @@ public class AlfaChatClientTests
         var (client, handler) = Alfa(_ => Json(HttpStatusCode.OK, "{}"), settings: new AiSettings { AlfaBaseUrl = url });
 
         await Assert.ThrowsAsync<AiException>(() => client.AskAsync("안녕"));
-        await Assert.ThrowsAsync<AiException>(() => AlfaChatClient.PickupAsync(new HttpClient(new StubHandler(_ => Json(HttpStatusCode.OK, "{}"))), url, Ticket));
+        var pickup = await AlfaChatClient.PickupAsync(new HttpClient(handler), url, Ticket);
+        var request = await AlfaChatClient.RequestLinkAsync(new HttpClient(handler), url, "windows-office", "펫", "cat", "windows");
+        var me = await AlfaChatClient.MeAsync(new HttpClient(handler), url, Key);
+        var unlink = await AlfaChatClient.UnlinkAsync(new HttpClient(handler), url, Key);
 
+        Assert.Equal(AlfaChatClient.PickupState.Retry, pickup.State);
+        Assert.Equal(AlfaChatClient.RequestOutcome.Invalid, request.Outcome);
+        Assert.Equal(AlfaChatClient.LinkState.Unreachable, me.State);
+        Assert.Equal(AlfaChatClient.UnlinkOutcome.Failed, unlink);
         Assert.Equal(0, handler.Calls);
     }
 
@@ -145,9 +152,12 @@ public class AlfaChatClientTests
         var handler = new StubHandler(_ => Json(HttpStatusCode.Created,
             """{"linkId":"00000000-0000-0000-0000-0000000000a1","pickupSecret":"s3cret","confirmationCode":"A1B2C3","expiresAt":"2026-11-04T03:10:00Z"}"""));
 
-        var ticket = await AlfaChatClient.RequestLinkAsync(new HttpClient(handler), AlfaChatClient.DefaultBaseUrl,
+        var result = await AlfaChatClient.RequestLinkAsync(new HttpClient(handler), AlfaChatClient.DefaultBaseUrl,
             "Windows Office", "레서판다", "red_panda", "windows");
 
+        Assert.Equal(AlfaChatClient.RequestOutcome.Created, result.Outcome);
+        Assert.Null(result.Message);
+        var ticket = result.Ticket!;
         Assert.Equal("A1B2C3", ticket.ConfirmationCode);
         Assert.Equal("s3cret", ticket.PickupSecret);
         Assert.Equal("https://alfa.uziseignk.com/api/pet-links/request", handler.LastRequest!.RequestUri!.ToString());
@@ -186,11 +196,14 @@ public class AlfaChatClientTests
     }
 
     [Fact]
-    public async Task A_pickup_answer_without_a_pet_key_is_refused()
+    public async Task A_pickup_answer_without_a_pet_key_is_not_taken()
     {
         var handler = new StubHandler(_ => Json(HttpStatusCode.OK, """{"status":"approved","key":"a-user-session-token"}"""));
 
-        await Assert.ThrowsAsync<AiException>(() => AlfaChatClient.PickupAsync(new HttpClient(handler), AlfaChatClient.DefaultBaseUrl, Ticket));
+        var result = await AlfaChatClient.PickupAsync(new HttpClient(handler), AlfaChatClient.DefaultBaseUrl, Ticket);
+
+        Assert.Equal(AlfaChatClient.PickupState.Retry, result.State);
+        Assert.Null(result.Key);
     }
 
     [Theory]
@@ -203,7 +216,7 @@ public class AlfaChatClientTests
 
         var state = await AlfaChatClient.MeAsync(new HttpClient(handler), AlfaChatClient.DefaultBaseUrl, Key);
 
-        Assert.Equal(expected, state);
+        Assert.Equal(expected, state.State);
         Assert.Equal("https://alfa.uziseignk.com/api/pet/me", handler.LastRequest!.RequestUri!.ToString());
         Assert.Equal(Key, handler.LastRequest.Headers.Authorization!.Parameter);
     }
@@ -213,8 +226,8 @@ public class AlfaChatClientTests
     {
         var handler = new StubHandler(_ => Json(HttpStatusCode.OK, "{}"));
 
-        Assert.Equal(AlfaChatClient.LinkState.Unlinked, await AlfaChatClient.MeAsync(new HttpClient(handler), AlfaChatClient.DefaultBaseUrl, null));
-        Assert.Equal(AlfaChatClient.LinkState.Unreachable, await AlfaChatClient.MeAsync(new HttpClient(handler), "https://evil.example", Key));
+        Assert.Equal(AlfaChatClient.LinkState.Unlinked, (await AlfaChatClient.MeAsync(new HttpClient(handler), AlfaChatClient.DefaultBaseUrl, null)).State);
+        Assert.Equal(AlfaChatClient.LinkState.Unreachable, (await AlfaChatClient.MeAsync(new HttpClient(handler), "https://evil.example", Key)).State);
         Assert.Equal(0, handler.Calls);
     }
 
