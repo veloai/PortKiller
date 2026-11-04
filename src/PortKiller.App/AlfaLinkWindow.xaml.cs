@@ -92,7 +92,7 @@ public partial class AlfaLinkWindow : Window
         {
             PetLinkPhase.Linked => "DotGold",
             PetLinkPhase.Waiting => "DotGoldLight",
-            PetLinkPhase.Rejected or PetLinkPhase.Revoked => "DotWarn",
+            PetLinkPhase.Rejected or PetLinkPhase.Revoked or PetLinkPhase.KeyLost => "DotWarn",
             _ => "DotMuted",
         });
 
@@ -121,6 +121,7 @@ public partial class AlfaLinkWindow : Window
             PetLinkPhase.Revoked => "ALFA 연결이 끊겼어요. 다시 요청해 주세요.",
             PetLinkPhase.Expired => "승인 시간 10분이 지났어요. 다시 요청할까요?",
             PetLinkPhase.Rejected => "연동이 안 됐어요. 다시 요청할까요?",
+            PetLinkPhase.KeyLost => "승인은 됐는데 키를 받는 중에 연결이 끊겨 키를 놓쳤어요. 다시 요청해 주세요(ALFA 설정에서 앞 연동은 해제해도 돼요).",
             PetLinkPhase.Unreachable => "ALFA 에 닿지 않아요. 다음 확인 때 다시 볼게요.",
             _ => null,
         };

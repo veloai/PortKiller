@@ -23,6 +23,12 @@ public enum PetLinkPhase
 
     /// <summary>키는 있는데 ALFA 에 닿지 않는다. 펫은 말하지 않는다.</summary>
     Unreachable,
+
+    /// <summary>
+    /// 승인은 됐는데 키를 받는 응답이 도중에 끊겨, 서버는 "이미 받아 감"(409)이라 한다. 키는 잃었다 — 다시 요청해야 한다.
+    /// 전에는 이것을 '거절'로 보여 ALFA 화면(키 받아 감)과 펫 말이 서로 달랐다(코드 리뷰 3번).
+    /// </summary>
+    KeyLost,
 }
 
 /// <summary>상태가 바뀔 때 펫이 할 말과 표정. 둘 다 없으면 조용히.</summary>
@@ -88,6 +94,7 @@ public sealed record PetLinkState
             AlfaChatClient.PickupState.Pending or AlfaChatClient.PickupState.Retry => this,
             AlfaChatClient.PickupState.Issued => new() { Phase = PetLinkPhase.Linked, LinkedAt = now, LastSeen = now },
             AlfaChatClient.PickupState.Closed when ExpiresAt is { } e && now >= e => Closed(PetLinkPhase.Expired),
+            AlfaChatClient.PickupState.AlreadyIssued => Closed(PetLinkPhase.KeyLost),
             _ => Closed(PetLinkPhase.Rejected),
         };
     }
@@ -139,7 +146,7 @@ public sealed record PetLinkState
     {
         PetLinkPhase.Linked => "▦",
         PetLinkPhase.Waiting => "▒",
-        PetLinkPhase.Rejected or PetLinkPhase.Revoked => "▧",
+        PetLinkPhase.Rejected or PetLinkPhase.Revoked or PetLinkPhase.KeyLost => "▧",
         _ => "░",
     };
 
@@ -150,6 +157,7 @@ public sealed record PetLinkState
         PetLinkPhase.Waiting => "WAITING",
         PetLinkPhase.Expired => "OFF · 만료",
         PetLinkPhase.Rejected => "OFF · 거절",
+        PetLinkPhase.KeyLost => "OFF · 키 받기 실패",
         PetLinkPhase.Revoked => "OFF · 연결이 끊겼어요",
         PetLinkPhase.Unreachable => "OFF · 연결 불가",
         _ => "OFF",
@@ -207,6 +215,7 @@ public sealed record PetLinkState
             PetLinkPhase.Linked when before.IsWaiting => new("ALFA 와 연결됐어요!", PetLinkMood.Happy),
             PetLinkPhase.Expired or PetLinkPhase.Rejected => new("연동이 안 됐어요. 다시 요청할까요?", PetLinkMood.Sad),
             PetLinkPhase.Revoked => new("ALFA 연결이 끊겼어요", PetLinkMood.Sad),
+            PetLinkPhase.KeyLost => new("키를 받다가 끊겼어요. 다시 요청해 주세요", PetLinkMood.Sad),
             _ => new(null, PetLinkMood.None),
         };
     }

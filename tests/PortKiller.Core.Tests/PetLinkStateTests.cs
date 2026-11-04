@@ -68,11 +68,23 @@ public class PetLinkStateTests
         Assert.Equal(PetLinkPhase.Expired, Waiting().Pickup(Pickup.Closed, Expires.AddMinutes(1)).Phase);
     }
 
-    [Theory]
-    [InlineData(Pickup.AlreadyIssued)]
-    [InlineData(Pickup.NotFound)]
-    public void Key_already_taken_or_unknown_request_is_rejected(Pickup result)
-        => Assert.Equal(PetLinkPhase.Rejected, Waiting().Pickup(result, T0.AddMinutes(1)).Phase);
+    [Fact]
+    public void Unknown_request_is_rejected()
+        => Assert.Equal(PetLinkPhase.Rejected, Waiting().Pickup(Pickup.NotFound, T0.AddMinutes(1)).Phase);
+
+    /// <summary>코드 리뷰 3번: 키 응답이 도중에 끊겨 409 가 오면 '거절'이 아니라 '키 받기 실패'로, 다시 요청하라고 말한다.</summary>
+    [Fact]
+    public void Key_already_issued_means_the_key_was_lost_not_rejected()
+    {
+        var before = Waiting();
+        var after = before.Pickup(Pickup.AlreadyIssued, T0.AddMinutes(1));
+        Assert.Equal(PetLinkPhase.KeyLost, after.Phase);
+        Assert.Equal("OFF · 키 받기 실패", after.StatusWord);
+        Assert.Equal("▧", after.Glyph);
+        var speech = PetLinkState.Speech(before, after);
+        Assert.Equal("키를 받다가 끊겼어요. 다시 요청해 주세요", speech.Line);
+        Assert.Equal(PetLinkMood.Sad, speech.Mood);
+    }
 
     [Fact]
     public void Cancel_goes_back_to_before_the_request()
