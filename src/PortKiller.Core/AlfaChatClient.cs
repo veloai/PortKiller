@@ -235,7 +235,8 @@ public sealed partial class AlfaChatClient : IAiClient
             case HttpStatusCode.BadRequest: return new(RequestOutcome.Invalid, null);
             // 서버가 같은 429 로 두 가지를 알린다: 대기 수 한도(PET_LINK_LIMIT)와 같은 곳 횟수 제한(PET_LINK_RATE_LIMIT).
             case HttpStatusCode.TooManyRequests:
-                return new(json.Contains("PET_LINK_RATE_LIMIT", StringComparison.Ordinal) ? RequestOutcome.RateLimited : RequestOutcome.Limit, null);
+                // 글자 포함이 아니라 JSON error 칸을 정확히 비교한다(다른 응답과 같은 ErrorCode 사용, 다시 리뷰 5번).
+                return new(ErrorCode(json) == "PET_LINK_RATE_LIMIT" ? RequestOutcome.RateLimited : RequestOutcome.Limit, null);
             case HttpStatusCode.Conflict: return new(RequestOutcome.Conflict, null);
             default:
                 return new(status >= HttpStatusCode.InternalServerError ? RequestOutcome.Unreachable : RequestOutcome.Failed, null);
