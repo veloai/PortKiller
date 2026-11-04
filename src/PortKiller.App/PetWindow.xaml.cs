@@ -147,6 +147,7 @@ public partial class PetWindow : Window, IPetMcpHost
         OpenNotebookIfRequested();
         _ = ReportGenianOnStartAsync();
         _ = WatchDevStatusAsync();
+        _ = WatchAlfaLinkAsync();
         StartMcpServer();
         _ = AutoLoginNacOnStartAsync();
     }
@@ -332,6 +333,50 @@ public partial class PetWindow : Window, IPetMcpHost
                 last = now;
                 _lastDev = now;
                 await Task.Delay(DevInterval, _devCancel.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    // ---------- ALFA 연동 확인 ----------
+
+    /// <summary>
+    /// ALFA 연동 키가 있으면 5분마다 <c>/api/pet/me</c> 로 살아 있다고 알린다(ALFA 설정 목록의 "연결됨"은 10분 안 접속).
+    /// 해제됐으면 한 번만 말풍선으로 알리고, 키는 지우지 않는다(다시 연동하면 바뀐다).
+    /// </summary>
+    private async Task WatchAlfaLinkAsync()
+    {
+        var warned = false;
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(20), _devCancel.Token);
+            while (!_devCancel.IsCancellationRequested)
+            {
+                var key = _keys.Get(AiProvider.Alfa);
+                if (key is not null && key.StartsWith(AlfaChatClient.KeyPrefix, StringComparison.Ordinal))
+                {
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_devCancel.Token);
+                    timeout.CancelAfter(TimeSpan.FromSeconds(15));
+                    AlfaChatClient.LinkState state;
+                    try
+                    {
+                        state = await AlfaChatClient.MeAsync(_http, _ai.AlfaBaseUrl, key, timeout.Token);
+                    }
+                    catch (OperationCanceledException) when (!_devCancel.IsCancellationRequested)
+                    {
+                        state = AlfaChatClient.LinkState.Unreachable;   // 15초 안에 답이 없었다. 다음 차례에 다시 본다.
+                    }
+                    StartupLog.Write($"alfa-link {state}");
+                    if (state == AlfaChatClient.LinkState.Unlinked && !warned)
+                    {
+                        Say("ALFA 연동이 끊겼어요. 'AI 설정'에서 다시 연동 요청해 주세요.");
+                        warned = true;
+                    }
+                    if (state == AlfaChatClient.LinkState.Connected) warned = false;
+                }
+                await Task.Delay(TimeSpan.FromMinutes(5), _devCancel.Token);
             }
         }
         catch (OperationCanceledException)

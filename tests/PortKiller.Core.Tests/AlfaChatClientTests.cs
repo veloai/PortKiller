@@ -194,6 +194,31 @@ public class AlfaChatClientTests
     }
 
     [Theory]
+    [InlineData(HttpStatusCode.OK, AlfaChatClient.LinkState.Connected)]
+    [InlineData(HttpStatusCode.Unauthorized, AlfaChatClient.LinkState.Unlinked)]
+    [InlineData(HttpStatusCode.BadGateway, AlfaChatClient.LinkState.Unreachable)]
+    public async Task Heartbeat_reads_the_link_state(HttpStatusCode status, AlfaChatClient.LinkState expected)
+    {
+        var handler = new StubHandler(_ => Json(status, "{}"));
+
+        var state = await AlfaChatClient.MeAsync(new HttpClient(handler), AlfaChatClient.DefaultBaseUrl, Key);
+
+        Assert.Equal(expected, state);
+        Assert.Equal("https://alfa.uziseignk.com/api/pet/me", handler.LastRequest!.RequestUri!.ToString());
+        Assert.Equal(Key, handler.LastRequest.Headers.Authorization!.Parameter);
+    }
+
+    [Fact]
+    public async Task Heartbeat_without_a_pet_key_or_to_a_foreign_host_sends_nothing()
+    {
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, "{}"));
+
+        Assert.Equal(AlfaChatClient.LinkState.Unlinked, await AlfaChatClient.MeAsync(new HttpClient(handler), AlfaChatClient.DefaultBaseUrl, null));
+        Assert.Equal(AlfaChatClient.LinkState.Unreachable, await AlfaChatClient.MeAsync(new HttpClient(handler), "https://evil.example", Key));
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Theory]
     [InlineData("Windows Office", "windows-office")]
     [InlineData("  MAC-AIR ", "mac-air")]
     [InlineData("DESKTOP_ABC.local", "desktop_abc.local")]

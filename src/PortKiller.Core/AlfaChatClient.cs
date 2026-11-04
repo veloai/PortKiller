@@ -45,6 +45,35 @@ public sealed class AlfaChatClient : IAiClient
 
     public sealed record PickupResult(PickupState State, string? Key);
 
+    public enum LinkState { Connected, Unlinked, Unreachable }
+
+    /// <summary>
+    /// 연동이 살아 있는지 확인하고, ALFA 설정 목록의 "마지막 접속"을 남긴다(<c>GET /api/pet/me</c>).
+    /// 401 은 해제됐거나 키가 맞지 않는 것, 그 밖의 실패는 연결 불가로 본다. 키를 지우지는 않는다.
+    /// </summary>
+    public static async Task<LinkState> MeAsync(HttpClient http, string baseUrl, string? key, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(key) || !key.StartsWith(KeyPrefix, StringComparison.Ordinal)) return LinkState.Unlinked;
+        string url;
+        try { url = BaseUrl(baseUrl); } catch (AiException) { return LinkState.Unreachable; }
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{url}/api/pet/me");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+        try
+        {
+            var (status, _) = await SendAsync(http, request, cancellationToken).ConfigureAwait(false);
+            return status switch
+            {
+                HttpStatusCode.OK => LinkState.Connected,
+                HttpStatusCode.Unauthorized => LinkState.Unlinked,
+                _ => LinkState.Unreachable,
+            };
+        }
+        catch (AiException)
+        {
+            return LinkState.Unreachable;
+        }
+    }
+
     /// <summary>키를 보내도 되는 주소인지: ALFA 허브(https 의 uziseignk.com 계열) 또는 이 PC.</summary>
     public static bool IsAllowedBase(string? baseUrl)
     {

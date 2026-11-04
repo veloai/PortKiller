@@ -51,9 +51,8 @@ public partial class AiSettingsWindow : Window
         UseOpenAi.IsChecked = _settings.Provider == AiProvider.OpenAi;
         UseAlfa.IsChecked = _settings.Provider == AiProvider.Alfa;
         AlfaBaseUrl.Text = _settings.AlfaBaseUrl;
-        AlfaDevice.Text = string.IsNullOrWhiteSpace(_settings.AlfaDeviceName)
-            ? AlfaChatClient.NormalizeDeviceName(Environment.MachineName)
-            : _settings.AlfaDeviceName;
+        // 기본값은 ALFA 가 이 PC 를 부르는 이름. 위키·기기 설정(alfa-device.env)에서 이 PC 는 windows-office 다.
+        AlfaDevice.Text = string.IsNullOrWhiteSpace(_settings.AlfaDeviceName) ? "windows-office" : _settings.AlfaDeviceName;
 
         GeminiModel.Text = _settings.ModelFor(AiProvider.Gemini);
         OpenAiModel.Text = _settings.ModelFor(AiProvider.OpenAi);
