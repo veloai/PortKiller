@@ -181,7 +181,7 @@ public partial class AlfaLinkWindow : Window
         _message = null;
         var error = await _link.RequestAsync(DeviceBox.Text, AddressBox.Text, pet.Name, pet.Species);
         if (!IsLoaded) return;
-        DeviceBox.Text = _link.DeviceName;
+        if (error is null) DeviceBox.Text = _link.DeviceName;
         ShowMessage(error);
     }
 
