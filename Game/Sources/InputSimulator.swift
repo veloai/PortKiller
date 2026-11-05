@@ -15,7 +15,7 @@ public final class InputSimulator: ObservableObject {
     @Published public var mouseSpeed: Float = 14.0
     @Published public var touchpadMultiplier: Float = 450.0
 
-    private let eventSource = CGEventSource(stateID: .hidSystemState)
+    private lazy var eventSource = CGEventSource(stateID: .hidSystemState)
 
     // 현재 눌려 있는 키 및 모디파이어 플래그 추적 (중복 발송 방지 및 완전한 릴리즈 보장)
     private var heldKeys = Set<CGKeyCode>()
@@ -78,7 +78,8 @@ public final class InputSimulator: ObservableObject {
     @Published public var isAccessibilityTrusted: Bool = AXIsProcessTrusted()
 
     private init() {
-        promptAccessibilityIfNeeded()
+        // Reading status must never request permission. Only the explicit studio
+        // permission button may call promptAccessibilityIfNeeded().
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
@@ -98,7 +99,7 @@ public final class InputSimulator: ObservableObject {
 
     // MARK: - 게임 프로세스 활성화 검증
     public func canSendInput() -> Bool {
-        guard isEnabled else { return false }
+        guard isEnabled, isAccessibilityTrusted else { return false }
         if !targetOnlyWoW { return true }
 
         if let frontApp = NSWorkspace.shared.frontmostApplication {
@@ -139,6 +140,7 @@ public final class InputSimulator: ObservableObject {
     }
 
     private func postKeyEvent(keyCode: CGKeyCode, keyDown: Bool) {
+        guard isAccessibilityTrusted else { return }
         guard let event = CGEvent(keyboardEventSource: eventSource, virtualKey: keyCode, keyDown: keyDown) else { return }
         if !activeModifiers.isEmpty {
             event.flags.formUnion(activeModifiers)
@@ -173,6 +175,7 @@ public final class InputSimulator: ObservableObject {
     }
 
     private func postModifierEvent(keyCode: CGKeyCode, keyDown: Bool) {
+        guard isAccessibilityTrusted else { return }
         guard let event = CGEvent(keyboardEventSource: eventSource, virtualKey: keyCode, keyDown: keyDown) else { return }
         event.flags = activeModifiers
         event.post(tap: .cghidEventTap)
@@ -356,6 +359,7 @@ public final class InputSimulator: ObservableObject {
     }
 
     public func moveMouseRelative(dx: CGFloat, dy: CGFloat) {
+        guard canSendInput() else { return }
         guard abs(dx) > 0.01 || abs(dy) > 0.01 else { return }
 
         let now = ProcessInfo.processInfo.systemUptime

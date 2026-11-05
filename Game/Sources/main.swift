@@ -1,9 +1,6 @@
 import AppKit
 import SwiftUI
-import GameController
-
-// WoW 등 다른 게임 창이 활성화되어 있을 때도 패드 입력 백그라운드 수신 보장
-GCController.shouldMonitorBackgroundEvents = true
+import RecoveryShared
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
@@ -12,22 +9,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 1. macOS 상태창(메뉴바) 도트 스타일 펫 즉시 기동 및 로밍 시작
         MenuBarPetController.shared.start()
 
-        // 2. 메인 스튜디오 창 준비 (상태창 팝오버에서 '스튜디오 열기'로 표시 가능)
-        let contentView = ContentView()
+        // Introduce the installed recovery feature once; later launches stay quiet.
+        // Never capture the user's desktop automatically.
+        let introductionKey = "pkp.recovery.introduction.v1"
+        if FileManager.default.fileExists(atPath: RecoveryWire.directory.appendingPathComponent("policy.json").path),
+           !UserDefaults.standard.bool(forKey: introductionKey) {
+            RecoveryClient.shared.open()
+            UserDefaults.standard.set(true, forKey: introductionKey)
+        }
+    }
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 100, y: 100, width: 1100, height: 720),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.center()
-        window.title = "PortKiller Gamepad & Voice Studio (macOS Native)"
-        window.contentView = NSHostingView(rootView: contentView)
-        self.window = window
+    // Optional game input and voice managers are created only after this user action.
+    // Building an invisible ContentView at startup used to request Mac control access.
+    @MainActor func showStudio() {
+        if window == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 100, y: 100, width: 1100, height: 720),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered, defer: false
+            )
+            window.center()
+            window.title = "PortKiller Gamepad & Voice Studio (macOS Native)"
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: ContentView())
+            self.window = window
+        }
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
-        // 화면 스냅샷 자동 생성 (상태창 도트 펫 포함)
-        savePreview()
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        RecoveryClient.shared.open()
+        return true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

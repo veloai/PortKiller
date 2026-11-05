@@ -220,8 +220,9 @@ public final class MenuBarPetController: NSObject, ObservableObject {
 }
 
 // MARK: - 상태창 펫 클릭 시 열리는 상세 팝오버 뷰 (다마고치 요소 제거 - 클린 상태창)
-struct MenuBarPetPopoverView: View {
+@MainActor struct MenuBarPetPopoverView: View {
     @ObservedObject var state = MacPetState.shared
+    @ObservedObject var recovery = RecoveryClient.shared
 
     var body: some View {
         VStack(spacing: 12) {
@@ -255,12 +256,12 @@ struct MenuBarPetPopoverView: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("💻 ALFA 환경").font(.system(size: 10)).foregroundColor(.secondary)
-                    Text("정상 가동").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
+                    Text(recovery.statusMessage).font(.system(size: 11, weight: .semibold)).lineLimit(2)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("기기").font(.system(size: 10)).foregroundColor(.secondary)
-                    Text("mac-air (M5)").font(.system(size: 12, weight: .semibold)).foregroundColor(.primary)
+                    Text(ProcessInfo.processInfo.hostName).font(.system(size: 11, weight: .semibold)).foregroundColor(.primary)
                 }
             }
             .padding(.vertical, 6)
@@ -272,6 +273,8 @@ struct MenuBarPetPopoverView: View {
 
             // 액션 버튼 모음 (다마고치 버튼 제거 -> 브리핑 & 뷰 토글)
             VStack(spacing: 6) {
+                Button("이 Mac의 ALFA 상태·복구") { recovery.open() }
+                    .font(.system(size: 11)).frame(maxWidth: .infinity)
                 Button(action: { state.briefing() }) {
                     Label("환경 브리핑 새로고침", systemImage: "chart.bar.fill")
                         .font(.system(size: 11))
@@ -292,7 +295,7 @@ struct MenuBarPetPopoverView: View {
             // 하단 조작
             HStack {
                 Button("스튜디오 열기") {
-                    NSApp.windows.first?.makeKeyAndOrderFront(nil)
+                    (NSApp.delegate as? AppDelegate)?.showStudio()
                     NSApp.activate(ignoringOtherApps: true)
                 }
                 .font(.system(size: 10))
@@ -308,5 +311,6 @@ struct MenuBarPetPopoverView: View {
         }
         .padding(14)
         .frame(width: 240)
+        .task { await recovery.refresh() }
     }
 }
